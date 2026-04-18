@@ -112,13 +112,20 @@ def call_gemini_with_retry(prompt: str, skill: str) -> list:
 
    
 
+    try:
+        api_key = st.secrets["gemini"]["api_key"]
+        client = genai.Client(api_key=api_key)
+    except Exception as e:
+        st.error(f"DEBUG — Gemini error on attempt {attempt+1} for {skill}: {type(e).__name__}: {str(e)}")
+        if attempt == 0:
+            time.sleep(2)
+        else:
+            return []
+
     for attempt in range(2):
         try:
-            client = st.session_state.get("gemini_client")
-            if not client:
-                return []
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-1.5-flash",
                 contents=prompt,
             )
             raw_text = response.text.strip()
