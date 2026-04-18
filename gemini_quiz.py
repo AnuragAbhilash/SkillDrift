@@ -114,13 +114,9 @@ def call_gemini_with_retry(prompt: str, skill: str) -> list:
 
     try:
         api_key = st.secrets["gemini"]["api_key"]
-        client = genai.Client(api_key=api_key)
+        client  = genai.Client(api_key=api_key)
     except Exception as e:
-        st.error(f"DEBUG — Gemini error on attempt {attempt+1} for {skill}: {type(e).__name__}: {str(e)}")
-        if attempt == 0:
-            time.sleep(2)
-        else:
-            return []
+        return []
 
     for attempt in range(2):
         try:
@@ -128,23 +124,16 @@ def call_gemini_with_retry(prompt: str, skill: str) -> list:
                 model="gemini-1.5-flash",
                 contents=prompt,
             )
-            raw_text = response.text.strip()
-
-            # Try to extract JSON even if Gemini added extra text
+            raw_text  = response.text.strip()
             questions = parse_gemini_response(raw_text, skill, attempt + 1)
-
             if questions:
                 return questions
-
-            # If parsing failed and this is attempt 1, wait briefly and retry
             if attempt == 0:
                 time.sleep(1)
-
-        except Exception as e:
+        except Exception:
             if attempt == 0:
                 time.sleep(2)
             else:
-                # Both attempts failed — return empty list
                 return []
 
     return []
