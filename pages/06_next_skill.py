@@ -234,9 +234,9 @@ fig_gauge = go.Figure(go.Indicator(
         "bgcolor": "#1A1D27",
         "bordercolor": "#2D3250",
         "steps": [
-            {"range": [0,  40], "color": "#E74C3C22"},
-            {"range": [40, 70], "color": "#F39C1222"},
-            {"range": [70, 100], "color": "#2ECC7122"},
+            {"range": [0,  40], "color": "rgba(231, 76, 60, 0.12)"},
+            {"range": [40, 70], "color": "rgba(243, 156, 18, 0.12)"},
+            {"range": [70, 100], "color": "rgba(46, 204, 113, 0.12)"},
         ],
         "threshold": {
             "line": {"color": "#FAFAFA", "width": 3},
