@@ -23,9 +23,18 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    [data-testid="stSidebarNav"] { display: none; }
+    [data-testid="stSidebarNav"]     { display: none !important; }
+    [data-testid="collapsedControl"] { display: none !important; }
+    [data-testid="stExpandSidebar"]  { display: none !important; }
+    [data-testid="stSidebarCollapseButton"] { display: none !important; }
+    section[data-testid="stSidebar"] { display: none !important; }
+    header[data-testid="stHeader"]   { display: none !important; }
+    .stDeployButton                  { display: none !important; }
+    #MainMenu                        { display: none !important; }
+    footer                           { display: none !important; }
+
     .stApp { background-color: #F5F5F7; }
-    .block-container { padding-top: 2rem; padding-bottom: 3rem; }
+    .block-container { padding-top: 2rem; padding-bottom: 3rem; max-width: 1080px; }
     h1, h2, h3 { color: #1D1D1F !important; }
     .stButton > button {
         border-radius: 8px;
@@ -42,10 +51,6 @@ st.markdown("""
         border-color: #6C63FF;
     }
     .stButton > button[kind="primary"]:hover { background: #5A52E0; }
-    section[data-testid="stSidebar"] > div {
-        background-color: #FFFFFF;
-        border-right: 1px solid #D2D2D7;
-    }
     .stTextInput > div > div input { border-radius: 8px; }
     .stAlert { border-radius: 12px; }
 </style>
@@ -130,32 +135,20 @@ if not st.session_state.get("faculty_logged_in"):
 
 faculty_name = st.session_state.get("faculty_name", "Faculty")
 
-with st.sidebar:
-    st.markdown(f"""
-    <div style="text-align:center; padding:1.5rem 0 1rem 0;">
-        <div style="width:60px; height:60px; border-radius:50%; background:#F0EFFF;
-                    display:flex; align-items:center; justify-content:center;
-                    margin:0 auto; font-size:1.5rem; color:#6C63FF; font-weight:700;">
-            F
-        </div>
-        <div style="font-weight:700; color:#1D1D1F; font-size:1rem; margin-top:0.75rem;">
-            {faculty_name}
-        </div>
-        <div style="color:#86868B; font-size:0.8rem;">Faculty Dashboard</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    if st.button("Back to Home", use_container_width=True):
-        st.switch_page("pages/01_home.py")
-
-    st.markdown("---")
-    if st.button("Sign Out", use_container_width=True):
-        st.session_state["faculty_logged_in"]      = False
-        st.session_state["faculty_name"]           = None
-        st.session_state["faculty_login_attempts"] = 0
-        st.session_state["faculty_lockout_time"]   = None
-        st.rerun()
+# ── Top action row (no sidebar on faculty page) ────────────────
+_fac_l, _fac_r = st.columns([7, 3])
+with _fac_r:
+    _btn1, _btn2 = st.columns(2)
+    with _btn1:
+        if st.button("← Home", use_container_width=True):
+            st.switch_page("pages/01_home.py")
+    with _btn2:
+        if st.button("Sign Out", use_container_width=True):
+            st.session_state["faculty_logged_in"]      = False
+            st.session_state["faculty_name"]           = None
+            st.session_state["faculty_login_attempts"] = 0
+            st.session_state["faculty_lockout_time"]   = None
+            st.rerun()
 
 # ── Header ────────────────────────────────────────────────────
 st.title(f"Faculty Dashboard — Welcome, {faculty_name}")

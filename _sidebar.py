@@ -6,19 +6,40 @@ import plotly.graph_objects as go
 # ── CSS injected on every dashboard page (03–08, 10) ────────────────────────
 APPLE_CSS = """
 <style>
-    /* Hide Streamlit chrome */
-    [data-testid="stSidebarNav"]   { display: none !important; }
-    header[data-testid="stHeader"] { display: none !important; }
-    .stDeployButton                { display: none !important; }
-    #MainMenu                      { display: none !important; }
-    footer                         { display: none !important; }
+    /* ── Hide Streamlit chrome ────────────────────────────────────── */
+    [data-testid="stSidebarNav"]     { display: none !important; }
+    .stDeployButton                  { display: none !important; }
+    #MainMenu                        { display: none !important; }
+    footer                           { display: none !important; }
 
-    /* Keep the collapse-arrow visible on dashboard pages */
+    /* Hide toolbar CONTENT inside the header, but NOT the header shell.
+       Reason: in Streamlit 1.29+ the sidebar expand button lives inside
+       the header (data-testid="stExpandSidebar").  If we hide the whole
+       header we also hide the only way to re-open the sidebar. */
+    [data-testid="stDecoration"]     { display: none !important; }
+    [data-testid="stStatusWidget"]   { display: none !important; }
+    [data-testid="stMainMenu"]       { display: none !important; }
+    [data-testid="stToolbarActions"] { display: none !important; }
+
+    /* Make header shell invisible but still in the DOM */
+    header[data-testid="stHeader"] {
+        background:    transparent !important;
+        border-bottom: none        !important;
+        box-shadow:    none        !important;
+    }
+
+    /* ── Sidebar toggle buttons — Streamlit 1.29 + (testids changed) ─ */
+    /* stExpandSidebar  = button shown in header when sidebar is CLOSED  */
+    /* stSidebarCollapseButton = button shown inside sidebar when OPEN   */
+    /* collapsedControl = legacy testid (Streamlit < 1.29)               */
+    [data-testid="stExpandSidebar"],
+    [data-testid="stSidebarCollapseButton"],
     [data-testid="collapsedControl"] {
-        display:    block   !important;
-        visibility: visible !important;
-        opacity:    1       !important;
-        z-index:    9999    !important;
+        display:        flex !important;
+        visibility:     visible !important;
+        opacity:        1       !important;
+        z-index:        99999   !important;
+        pointer-events: all     !important;
     }
 
     /* Page background */
@@ -327,3 +348,33 @@ def render_sidebar():
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.switch_page("pages/01_home.py")
+
+    # ── Auto-expand sidebar ONCE per page visit (not on every rerender) ────
+    # Uses a session_state flag per page so the JS fires only on first
+    # navigation to this page. After that the user can freely collapse/expand.
+    _expand_key = f"_sidebar_opened_{st.session_state.get('_current_page', 'x')}"
+    if not st.session_state.get(_expand_key):
+        st.session_state[_expand_key] = True
+        import streamlit.components.v1 as components
+        components.html("""
+        <script>
+        (function() {
+            function tryExpand() {
+                var doc = window.parent.document;
+                var sidebar = doc.querySelector('[data-testid="stSidebar"]');
+                if (!sidebar) return false;
+                if (sidebar.getAttribute('aria-expanded') === 'false') {
+                    // Try Streamlit 1.29+ selector first, then legacy
+                    var btn = doc.querySelector('[data-testid="stExpandSidebar"]')
+                           || doc.querySelector('[data-testid="collapsedControl"] button');
+                    if (btn) { btn.click(); }
+                }
+                return true;
+            }
+            var n = 0;
+            var t = setInterval(function() {
+                if (tryExpand() || n++ > 40) clearInterval(t);
+            }, 100);
+        })();
+        </script>
+        """, height=0)

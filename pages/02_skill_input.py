@@ -18,9 +18,12 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    [data-testid="stSidebarNav"] { display: none !important; }
+    [data-testid="stSidebarNav"]     { display: none !important; }
     [data-testid="collapsedControl"] { display: none !important; }
-    header[data-testid="stHeader"] { display: none !important; }
+    [data-testid="stExpandSidebar"]  { display: none !important; }
+    [data-testid="stSidebarCollapseButton"] { display: none !important; }
+    section[data-testid="stSidebar"] { display: none !important; }
+    header[data-testid="stHeader"]   { display: none !important; }
     .stDeployButton { display: none !important; }
     #MainMenu { display: none !important; }
     footer { display: none !important; }
