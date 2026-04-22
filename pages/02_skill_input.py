@@ -1,16 +1,11 @@
-# pages/02_skill_input.py — Window 2: Name + Skills + Quiz
+# pages/02_skill_input.py
 
 import streamlit as st
 from datetime import datetime
 from brain import (
-    calculate_drift_score,
-    calculate_entropy,
-    calculate_career_match,
-    calculate_readiness_score,
-    get_next_skill,
-    get_urgency_level,
-    calculate_focus_debt,
-    get_peer_placement_rate,
+    calculate_drift_score, calculate_entropy, calculate_career_match,
+    calculate_readiness_score, get_next_skill, get_urgency_level,
+    calculate_focus_debt, get_peer_placement_rate,
 )
 from gemini_quiz import run_skill_verification_quiz
 
@@ -23,40 +18,77 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    [data-testid="stSidebarNav"] { display: none; }
+    [data-testid="stSidebarNav"] { display: none !important; }
+    [data-testid="collapsedControl"] { display: none !important; }
+    header[data-testid="stHeader"] { display: none !important; }
+    .stDeployButton { display: none !important; }
+    #MainMenu { display: none !important; }
+    footer { display: none !important; }
+
     .stApp { background-color: #F5F5F7; }
-    .block-container { padding-top: 2rem; padding-bottom: 3rem; }
-    h1, h2, h3 { color: #1D1D1F !important; }
+    .block-container { padding-top: 1.75rem; padding-bottom: 3rem; max-width: 1000px; }
+
+    h1 { font-size: 1.6rem !important; font-weight: 700 !important; color: #1D1D1F !important; }
+    h2 { font-size: 1.2rem !important; font-weight: 600 !important; color: #1D1D1F !important; }
+    h3 { font-size: 1rem !important; font-weight: 600 !important; color: #1D1D1F !important; }
+
     .stButton > button {
         border-radius: 8px;
         border: 1px solid #D2D2D7;
         background: #F5F5F7;
         color: #1D1D1F;
         font-weight: 500;
-        transition: all 0.15s ease;
+        font-size: 0.875rem;
+        transition: all 0.12s ease;
     }
     .stButton > button:hover { background: #E8E8ED; }
     .stButton > button[kind="primary"] {
         background: #6C63FF;
         color: #FFFFFF;
         border-color: #6C63FF;
+        font-weight: 600;
     }
     .stButton > button[kind="primary"]:hover { background: #5A52E0; }
-    .stCheckbox label { color: #1D1D1F !important; }
-    .stRadio label { color: #1D1D1F !important; }
-    .stSelectbox label { color: #1D1D1F !important; }
-    .stTextInput label { color: #1D1D1F !important; }
-    div[data-baseweb="tab"] { color: #86868B; }
-    div[data-baseweb="tab"][aria-selected="true"] { color: #1D1D1F; }
+
+    .stCheckbox label { color: #1D1D1F !important; font-size: 0.88rem !important; }
+    .stRadio label { color: #1D1D1F !important; font-size: 0.85rem !important; }
+    .stSelectbox label { color: #1D1D1F !important; font-size: 0.875rem !important; font-weight: 500 !important; }
+    .stTextInput label { color: #1D1D1F !important; font-size: 0.875rem !important; font-weight: 500 !important; }
+    .stTextInput input { font-size: 0.95rem !important; }
+
+    div[data-baseweb="tab"] { color: #86868B; font-size: 0.875rem; }
+    div[data-baseweb="tab"][aria-selected="true"] { color: #1D1D1F; font-weight: 600; }
     .stProgress > div > div { background-color: #6C63FF; }
+
+    .section-box {
+        background: #FFFFFF;
+        border: 1px solid #D2D2D7;
+        border-radius: 14px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1rem;
+    }
+    .section-tag {
+        font-size: 0.68rem;
+        font-weight: 600;
+        color: #6C63FF;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-if st.button("Back to Home"):
+if st.button("Back to Home", key="back_home"):
     st.switch_page("pages/01_home.py")
 
-st.title("Analyze My Career Focus")
-st.markdown("---")
+st.markdown("""
+<div style="margin-bottom:1.25rem;">
+    <div style="font-size:1.6rem; font-weight:700; color:#1D1D1F;">Analyze My Career Focus</div>
+    <div style="font-size:0.9rem; color:#86868B; margin-top:0.2rem;">
+        Fill in your details, select your skills, and take a short quiz to verify what you know.
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 ALL_SKILLS = {
     "Programming Languages": [
@@ -110,55 +142,55 @@ ALL_SKILLS = {
 
 LEVELS = ["Beginner", "Intermediate", "Advanced"]
 
-# ── Part A: Name ──────────────────────────────────────────────
-st.subheader("Part 1 — Your Name")
-st.markdown("*Your name will appear on your dashboard and downloadable report.*")
+# ── Part 1 — Name + Semester (compact, side by side) ──────────
+st.markdown('<div class="section-tag">Step 1 — Your Details</div>', unsafe_allow_html=True)
 
-name_input = st.text_input(
-    "Full Name",
-    value=st.session_state.get("student_name", "") or "",
-    placeholder="e.g. Priya Sharma",
-    max_chars=80,
-)
+col_name, col_sem = st.columns([3, 1], gap="medium")
+with col_name:
+    name_input = st.text_input(
+        "Full Name",
+        value=st.session_state.get("student_name", "") or "",
+        placeholder="e.g. Priya Sharma",
+        max_chars=80,
+    )
+with col_sem:
+    semester = st.selectbox(
+        "Semester",
+        options=list(range(1, 9)),
+        index=(st.session_state.get("semester", 4) or 4) - 1,
+        format_func=lambda x: f"Sem {x}",
+    )
 
-# ── Part B: Skills ────────────────────────────────────────────
-st.markdown("---")
-st.subheader("Part 2 — Select Your Skills")
+st.markdown("<div style='height:0.75rem;'></div>", unsafe_allow_html=True)
+
+# ── Part 2 — Skills ───────────────────────────────────────────
+st.markdown('<div class="section-tag">Step 2 — Select Your Skills</div>', unsafe_allow_html=True)
 st.markdown(
-    "Select every technology you have studied. Rate your level **honestly**. "
-    "The quiz in the next step will verify your claims."
+    "<div style='font-size:0.85rem; color:#86868B; margin-bottom:0.75rem;'>"
+    "Select every technology you have studied. Rate your level honestly — "
+    "the quiz in the next step will verify your claims."
+    "</div>",
+    unsafe_allow_html=True,
 )
-
-semester = st.selectbox(
-    "Current Semester",
-    options=list(range(1, 9)),
-    index=(st.session_state.get("semester", 4) or 4) - 1,
-    format_func=lambda x: f"Semester {x}",
-)
-
-st.markdown("#### Select Skills by Category")
-st.markdown("*Use the tabs below. Select a skill, then choose your proficiency level.*")
 
 selected_skills = {}
 tabs = st.tabs(list(ALL_SKILLS.keys()))
 
 for tab, (category, skills) in zip(tabs, ALL_SKILLS.items()):
     with tab:
-        st.markdown(f"**{category}** — select all that apply")
+        st.markdown(
+            f"<div style='font-size:0.8rem; color:#86868B; margin-bottom:0.5rem;'>"
+            f"Select all that apply</div>",
+            unsafe_allow_html=True,
+        )
         cols = st.columns(2)
         for i, skill in enumerate(skills):
             with cols[i % 2]:
                 already_selected = skill in st.session_state.get("selected_skills", {})
-                checked = st.checkbox(
-                    skill,
-                    value=already_selected,
-                    key=f"skill_check_{skill}",
-                )
+                checked = st.checkbox(skill, value=already_selected, key=f"skill_check_{skill}")
                 if checked:
-                    prev_level = st.session_state.get(
-                        "selected_skills", {}
-                    ).get(skill, "Beginner")
-                    level_idx = LEVELS.index(prev_level) if prev_level in LEVELS else 0
+                    prev_level = st.session_state.get("selected_skills", {}).get(skill, "Beginner")
+                    level_idx  = LEVELS.index(prev_level) if prev_level in LEVELS else 0
                     level = st.radio(
                         f"Level for {skill}",
                         options=LEVELS,
@@ -170,7 +202,7 @@ for tab, (category, skills) in zip(tabs, ALL_SKILLS.items()):
                     selected_skills[skill] = level
 
 # ── Submit ────────────────────────────────────────────────────
-st.markdown("---")
+st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
 col_submit, col_info = st.columns([2, 3])
 
 with col_submit:
@@ -185,22 +217,19 @@ with col_info:
         skill_count = len(selected_skills)
         color = "#FF3B30" if skill_count > 40 else "#34C759"
         st.markdown(
-            f"<span style='color:{color}; font-weight:700;'>"
-            f"{skill_count} skills selected</span>",
+            f"<div style='padding-top:0.5rem;'>"
+            f"<span style='color:{color}; font-weight:600; font-size:0.9rem;'>"
+            f"{skill_count} skills selected</span></div>",
             unsafe_allow_html=True,
         )
         if skill_count > 40:
-            st.warning(
-                f"{skill_count} skills selected. This may indicate skill drift. "
-                "You can still continue."
-            )
+            st.warning(f"{skill_count} skills selected — this may indicate skill drift. You can still continue.")
 
 if submit_skills:
     name_clean = name_input.strip()
     if not name_clean:
         st.error("Please enter your name to continue.")
         st.stop()
-
     if len(selected_skills) < 3:
         st.error("Please select at least 3 skills to continue.")
         st.stop()
@@ -212,23 +241,24 @@ if submit_skills:
     st.session_state["quiz_complete"]   = False
     st.session_state["verified_skills"] = {}
 
-    st.success(
-        f"Hello {name_clean}. You selected {len(selected_skills)} skills. "
-        "Starting verification quiz..."
-    )
+    st.success(f"Hello {name_clean}. {len(selected_skills)} skills selected. Starting quiz...")
     st.rerun()
 
-# ── Part C: Gemini Quiz ───────────────────────────────────────
+# ── Part 3 — Quiz ─────────────────────────────────────────────
 if (
     st.session_state.get("student_name")
     and st.session_state.get("selected_skills")
     and not st.session_state.get("quiz_complete")
 ):
-    st.markdown("---")
+    st.markdown("<hr style='border:none; border-top:1px solid #D2D2D7; margin:1.5rem 0;'>",
+                unsafe_allow_html=True)
     st.markdown(
-        f"### Welcome, {st.session_state['student_name']}\n"
-        f"You selected **{len(st.session_state['selected_skills'])} skills**. "
-        f"Now let us verify what you actually know."
+        f"<div style='font-size:1rem; font-weight:600; color:#1D1D1F; margin-bottom:0.25rem;'>"
+        f"Welcome, {st.session_state['student_name']}</div>"
+        f"<div style='font-size:0.85rem; color:#86868B;'>"
+        f"{len(st.session_state['selected_skills'])} skills selected — "
+        f"now let us verify what you actually know.</div>",
+        unsafe_allow_html=True,
     )
 
     verified = run_skill_verification_quiz(st.session_state["selected_skills"])
@@ -268,30 +298,21 @@ if (
         st.switch_page("pages/03_drift_score.py")
 
 elif st.session_state.get("quiz_complete"):
-    st.markdown("---")
-    st.success(
-        f"Quiz already completed, {st.session_state['student_name']}. "
-        "Navigate using the sidebar."
-    )
+    st.markdown("<hr style='border:none; border-top:1px solid #D2D2D7; margin:1.5rem 0;'>",
+                unsafe_allow_html=True)
+    st.success(f"Quiz already completed, {st.session_state['student_name']}. Navigate using the sidebar.")
 
     quiz_results = st.session_state.get("quiz_results", [])
     if quiz_results:
         st.subheader("Your Verified Skill Levels")
         import pandas as pd
-
         rows = []
         for r in quiz_results:
-            status_map = {
-                "Confirmed":    "Confirmed",
-                "Downgraded":   "Downgraded",
-                "Not Verified": "Not Verified",
-                "Unverified":   "Unverified",
-            }
             rows.append({
                 "Skill":          r["skill"],
                 "Claimed Level":  r["claimed_level"],
                 "Verified Level": r["verified_level"],
-                "Status":         status_map.get(r["status"], r["status"]),
+                "Status":         r["status"],
                 "Score":          f"{r['correct_count']}/{r['total_questions']}"
                                   if r["total_questions"] > 0 else "N/A",
             })

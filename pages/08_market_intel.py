@@ -1,4 +1,4 @@
-# pages/08_market_intel.py — Window 8: Market Intelligence
+# pages/08_market_intel.py
 
 import streamlit as st
 import plotly.graph_objects as go
@@ -21,17 +21,6 @@ if not st.session_state.get("student_name"):
 
 render_sidebar()
 
-# =============================================================
-# MAIN CONTENT
-# =============================================================
-
-st.title("Market Intelligence")
-st.markdown(
-    "Real data from **794 Indian job postings** collected from Naukri.com. "
-    "Where are the jobs? What do employers actually want?"
-)
-st.markdown("---")
-
 city_df    = load_city_job_counts()
 req_df     = load_required_skills()
 best_track = st.session_state.get("best_track", CAREER_TRACKS[0])
@@ -47,22 +36,32 @@ TRACK_TO_CITY_COL = {
     "Software Dev":   "Software Dev",
 }
 
-tab1, tab2 = st.tabs(["City Job Density Map", "Skill Demand by Track"])
+st.markdown("""
+<div style="margin-bottom:1.25rem;">
+    <div style="font-size:1.6rem; font-weight:700; color:#1D1D1F;">Market Intelligence</div>
+    <div style="font-size:0.88rem; color:#86868B; margin-top:0.2rem;">
+        Real data from 794 Indian job postings on Naukri.com — where are the jobs and what do employers want?
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-# =============================================================
-# TAB 1 — CITY JOB HEATMAP
-# =============================================================
+tab1, tab2 = st.tabs(["City Job Density", "Skill Demand by Track"])
+
+# ── TAB 1 — City Map ──────────────────────────────────────────
 with tab1:
-    st.subheader("City-wise Job Density for Your Career Track")
-    st.markdown(
-        "Circle size represents number of job postings in that city "
-        "from the Naukri.com dataset. Larger circle = more opportunities."
-    )
+    st.markdown("""
+    <div style="font-size:0.88rem; font-weight:600; color:#1D1D1F; margin-bottom:0.4rem;">
+        City-wise Job Density for Your Career Track
+    </div>
+    <div style="font-size:0.82rem; color:#86868B; margin-bottom:0.75rem;">
+        Bubble size = number of job postings in that city. Larger = more opportunities.
+    </div>
+    """, unsafe_allow_html=True)
 
-    col_track_select, _ = st.columns([2, 3])
-    with col_track_select:
+    col_sel, _ = st.columns([2, 3])
+    with col_sel:
         selected_track = st.selectbox(
-            "Select Career Track",
+            "Career Track",
             options=CAREER_TRACKS,
             index=CAREER_TRACKS.index(best_track) if best_track in CAREER_TRACKS else 0,
             key="map_track_select",
@@ -71,21 +70,14 @@ with tab1:
     track_col = TRACK_TO_CITY_COL.get(selected_track, selected_track)
 
     if track_col not in city_df.columns:
-        st.warning(
-            f"Column '{track_col}' not found in city_job_counts.csv. "
-            f"Available columns: {list(city_df.columns)}"
-        )
+        st.warning(f"Column '{track_col}' not found. Available: {list(city_df.columns)}")
     else:
         map_df = city_df[["city", "latitude", "longitude", track_col]].copy()
         map_df = map_df.rename(columns={track_col: "job_count"})
-        map_df = map_df[map_df["job_count"] > 0].copy()
-        map_df = map_df.dropna(subset=["latitude", "longitude"])
+        map_df = map_df[map_df["job_count"] > 0].dropna(subset=["latitude", "longitude"])
 
         if map_df.empty:
-            st.info(
-                f"No job postings found for {selected_track} in the dataset. "
-                "Try a different track."
-            )
+            st.info(f"No job postings found for {selected_track}. Try a different track.")
         else:
             max_count = map_df["job_count"].max()
             map_df["bubble_size"] = (map_df["job_count"] / max_count * 35 + 8).round(1)
@@ -95,95 +87,81 @@ with tab1:
                 lat=map_df["latitude"],
                 lon=map_df["longitude"],
                 text=map_df.apply(
-                    lambda r: f"<b>{r['city']}</b><br>{int(r['job_count'])} {selected_track} postings",
-                    axis=1,
+                    lambda r: f"<b>{r['city']}</b><br>{int(r['job_count'])} {selected_track} postings", axis=1
                 ),
-                hoverinfo="text",
-                mode="markers",
+                hoverinfo="text", mode="markers",
                 marker=dict(
                     size=map_df["bubble_size"],
                     color=map_df["job_count"],
                     colorscale="Blues",
                     showscale=True,
-                    colorbar=dict(
-                        title="Job Postings",
-                        titlefont=dict(color="#1D1D1F"),
-                        tickfont=dict(color="#1D1D1F"),
-                        bgcolor="#FFFFFF",
-                        bordercolor="#D2D2D7",
-                    ),
+                    colorbar=dict(title="Job Postings", titlefont=dict(color="#1D1D1F"),
+                                  tickfont=dict(color="#1D1D1F"), bgcolor="#FFFFFF", bordercolor="#D2D2D7"),
                     line=dict(color="#FFFFFF", width=1),
                     opacity=0.85,
                 ),
             ))
             fig_map.add_trace(go.Scattergeo(
-                lat=map_df["latitude"],
-                lon=map_df["longitude"],
-                text=map_df["city"],
-                mode="text",
-                textfont=dict(size=9, color="#1D1D1F"),
-                hoverinfo="skip",
+                lat=map_df["latitude"], lon=map_df["longitude"],
+                text=map_df["city"], mode="text",
+                textfont=dict(size=9, color="#1D1D1F"), hoverinfo="skip",
             ))
             fig_map.update_geos(
-                scope="asia",
-                center=dict(lat=20.5937, lon=78.9629),
+                scope="asia", center=dict(lat=20.5937, lon=78.9629),
                 projection_scale=4.5,
-                showland=True,
-                landcolor="#F5F5F7",
-                showocean=True,
-                oceancolor="#E8E8ED",
-                showcoastlines=True,
-                coastlinecolor="#D2D2D7",
-                showcountries=True,
-                countrycolor="#D2D2D7",
+                showland=True, landcolor="#F5F5F7",
+                showocean=True, oceancolor="#E8E8ED",
+                showcoastlines=True, coastlinecolor="#D2D2D7",
+                showcountries=True, countrycolor="#D2D2D7",
                 showframe=False,
             )
             fig_map.update_layout(
-                paper_bgcolor="#FFFFFF",
-                geo_bgcolor="#FFFFFF",
+                paper_bgcolor="#FFFFFF", geo_bgcolor="#FFFFFF",
                 font=dict(color="#1D1D1F"),
-                margin=dict(l=0, r=0, t=30, b=0),
-                height=500,
+                margin=dict(l=0, r=0, t=20, b=0),
+                height=480,
                 title=dict(
                     text=f"{selected_track} — Job Density Across Indian Cities",
-                    font=dict(color="#1D1D1F", size=14),
-                    x=0.5,
+                    font=dict(color="#1D1D1F", size=13), x=0.5,
                 ),
             )
             st.plotly_chart(fig_map, use_container_width=True)
 
-            st.subheader(f"City Rankings — {selected_track}")
-            rank_df = map_df[["city", "job_count"]].sort_values(
-                "job_count", ascending=False
-            ).reset_index(drop=True)
-            rank_df.index = rank_df.index + 1
+            st.markdown(f"""
+            <div style="font-size:0.85rem; font-weight:600; color:#1D1D1F; margin-bottom:0.5rem;">
+                City Rankings — {selected_track}
+            </div>
+            """, unsafe_allow_html=True)
+            rank_df = map_df[["city", "job_count"]].sort_values("job_count", ascending=False).reset_index(drop=True)
+            rank_df.index += 1
             rank_df.columns = ["City", "Job Postings in Dataset"]
             st.dataframe(rank_df, use_container_width=True)
 
-            if selected_track == best_track:
-                top_city = rank_df.iloc[0]["City"] if not rank_df.empty else "Unknown"
+            if selected_track == best_track and not rank_df.empty:
+                top_city = rank_df.iloc[0]["City"]
                 st.markdown(
-                    f"> **{top_city}** has the highest concentration of "
-                    f"**{best_track}** job postings in this dataset. "
-                    f"Students targeting this track may need to consider "
-                    f"relocation or remote opportunities from smaller cities."
+                    f"<div style='font-size:0.85rem; color:#86868B; margin-top:0.5rem;'>"
+                    f"<strong style='color:#1D1D1F;'>{top_city}</strong> has the most "
+                    f"{best_track} job postings in this dataset.</div>",
+                    unsafe_allow_html=True,
                 )
 
-# =============================================================
-# TAB 2 — SKILL DEMAND TREND
-# =============================================================
+# ── TAB 2 — Skill Demand ──────────────────────────────────────
 with tab2:
-    st.subheader("Top Skills Demanded by Indian Employers")
-    st.markdown(
-        "Horizontal bar chart showing the top skills for each career track, "
-        "ranked by how frequently they appear in Naukri.com job postings. "
-        "Green bars are skills you have; red bars are skills you are missing."
-    )
+    st.markdown("""
+    <div style="font-size:0.88rem; font-weight:600; color:#1D1D1F; margin-bottom:0.3rem;">
+        Top Skills Demanded by Indian Employers
+    </div>
+    <div style="font-size:0.82rem; color:#86868B; margin-bottom:0.75rem;">
+        Ranked by how often they appear in Naukri.com job postings.
+        Green = you have it. Red = you are missing it.
+    </div>
+    """, unsafe_allow_html=True)
 
-    col_track_select2, _ = st.columns([2, 3])
-    with col_track_select2:
+    col_sel2, _ = st.columns([2, 3])
+    with col_sel2:
         selected_track2 = st.selectbox(
-            "Select Career Track",
+            "Career Track",
             options=CAREER_TRACKS,
             index=CAREER_TRACKS.index(best_track) if best_track in CAREER_TRACKS else 0,
             key="trend_track_select",
@@ -199,13 +177,8 @@ with tab2:
         verified_skills = st.session_state.get("verified_skills", {})
         verified_lower  = [s.lower() for s in verified_skills.keys()]
 
-        track_skills_df["have_it"] = track_skills_df["skill"].apply(
-            lambda s: s.lower() in verified_lower
-        )
-        bar_colors_t = [
-            "#34C759" if have else "#FF3B30"
-            for have in track_skills_df["have_it"]
-        ]
+        track_skills_df["have_it"] = track_skills_df["skill"].apply(lambda s: s.lower() in verified_lower)
+        bar_colors_t = ["#34C759" if h else "#FF3B30" for h in track_skills_df["have_it"]]
 
         fig_trend = go.Figure(go.Bar(
             x=track_skills_df["frequency_pct"].tolist(),
@@ -214,25 +187,19 @@ with tab2:
             marker_color=bar_colors_t,
             text=[f"{v:.1f}%" for v in track_skills_df["frequency_pct"]],
             textposition="outside",
-            textfont=dict(color="#1D1D1F"),
+            textfont=dict(color="#1D1D1F", size=11),
         ))
         fig_trend.update_layout(
-            paper_bgcolor="#FFFFFF",
-            plot_bgcolor="#F5F5F7",
-            font=dict(color="#1D1D1F"),
-            xaxis=dict(
-                range=[0, 115],
-                gridcolor="#D2D2D7",
-                title="Appears in X% of Job Postings",
-                color="#1D1D1F",
-            ),
+            paper_bgcolor="#FFFFFF", plot_bgcolor="#F5F5F7",
+            font=dict(color="#1D1D1F", size=11),
+            xaxis=dict(range=[0, 115], gridcolor="#D2D2D7",
+                       title="Appears in X% of Job Postings", color="#86868B"),
             yaxis=dict(gridcolor="#D2D2D7", autorange="reversed", color="#1D1D1F"),
-            margin=dict(l=10, r=60, t=40, b=20),
-            height=480,
+            margin=dict(l=10, r=60, t=30, b=15),
+            height=460,
             title=dict(
                 text=f"Top Skills for {selected_track2} — Green = You Have It | Red = Missing",
-                font=dict(color="#1D1D1F", size=13),
-                x=0.5,
+                font=dict(color="#1D1D1F", size=12), x=0.5,
             ),
         )
         st.plotly_chart(fig_trend, use_container_width=True)
@@ -240,22 +207,24 @@ with tab2:
         have_count    = int(track_skills_df["have_it"].sum())
         missing_count = len(track_skills_df) - have_count
 
-        col_s1, col_s2, col_s3 = st.columns(3)
-        with col_s1:
+        c1, c2, c3 = st.columns(3)
+        with c1:
             st.metric("Skills Shown", len(track_skills_df))
-        with col_s2:
+        with c2:
             st.metric("You Have", have_count)
-        with col_s3:
+        with c3:
             st.metric("You Are Missing", missing_count)
 
-        st.caption(
-            "Source: Skills extracted from 794 real Indian job descriptions "
-            "collected from Naukri.com and processed using NLP frequency analysis."
+        st.markdown(
+            "<div style='font-size:0.78rem; color:#86868B; margin-top:0.25rem;'>"
+            "Source: Skills extracted from 794 real Indian job descriptions from Naukri.com, "
+            "processed using NLP frequency analysis.</div>",
+            unsafe_allow_html=True,
         )
 
-st.markdown("---")
+st.markdown("<hr style='border:none; border-top:1px solid #D2D2D7; margin:1.5rem 0;'>",
+            unsafe_allow_html=True)
 
-# ── Navigation ────────────────────────────────────────────────
 col_prev, col_next = st.columns(2)
 with col_prev:
     if st.button("Back — Peer Mirror", use_container_width=True):
