@@ -1,10 +1,6 @@
 # pages/02_skill_input.py
 
 import streamlit as st
-st.set_page_config(
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 from datetime import datetime
 from brain import (
     calculate_drift_score, calculate_entropy, calculate_career_match,

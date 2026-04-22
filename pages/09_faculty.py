@@ -7,10 +7,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import io
-st.set_page_config(
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 from datetime import datetime
 from brain import (
     verify_faculty_login,

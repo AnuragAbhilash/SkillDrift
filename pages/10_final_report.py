@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-st.session_state["_current_page"] = "drift"
+st.session_state["_current_page"] = "report"
 st.markdown(APPLE_CSS, unsafe_allow_html=True)
 render_sidebar()
 
