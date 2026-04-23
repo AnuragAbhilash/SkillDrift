@@ -101,7 +101,7 @@ While preparing for placements, I noticed that it’s easy to learn many things 
 
 ## Author
 
-Sahib Hussain
+Sahib Hussain | Anurag Roy
 B.Tech CSE Final Year
 
 Setup Instructions:
