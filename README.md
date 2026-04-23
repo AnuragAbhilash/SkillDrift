@@ -38,7 +38,7 @@ The idea came from a common problem: many students keep learning random skills w
 
 ## Project structure
 
-```id="27391a"
+```id=
 SkillDrift/
 │
 ├── app.py
@@ -59,17 +59,18 @@ SkillDrift/
 
 ## How to run
 
-Install dependencies:
+Setup Instructions:
 
-```id="8127af"
-pip install -r requirements.txt
-```
-
-Run the app:
-
-```id="c1c5b2"
-python -m streamlit run app.py
-```
+1. Create virtual environment:
+   python -m venv venv
+2. Activate:
+   Windows: venv\Scripts\activate
+   Mac/Linux: source venv/bin/activate
+3. Install dependencies:
+   pip install --upgrade pip
+   pip install -r requirements.txt
+4. Run app:
+   streamlit run app.py
 
 ---
 
@@ -102,3 +103,16 @@ While preparing for placements, I noticed that it’s easy to learn many things 
 
 Sahib Hussain
 B.Tech CSE Final Year
+
+Setup Instructions:
+
+1. Create virtual environment:
+   python -m venv venv
+2. Activate:
+   Windows: venv\Scripts\activate
+   Mac/Linux: source venv/bin/activate
+3. Install dependencies:
+   pip install --upgrade pip
+   pip install -r requirements.txt
+4. Run app:
+   streamlit run app.py
