@@ -47,12 +47,12 @@ APPLE_CSS = """
     .block-container { padding-top: 2rem; padding-bottom: 3rem; max-width: 1100px; }
 
     /* Sidebar shell */
-    section[data-testid="stSidebar"]       { width: 268px !important; min-width: 268px !important; }
+    
     section[data-testid="stSidebar"] > div {
         background-color: #FFFFFF;
         border-right:     1px solid #e2e8f0;
         padding-top:      0 !important;
-        height:           100vh;
+        
     }
     section[data-testid="stSidebar"] .stVerticalBlock { gap: 0 !important; }
 
@@ -352,29 +352,4 @@ def render_sidebar():
     # ── Auto-expand sidebar ONCE per page visit (not on every rerender) ────
     # Uses a session_state flag per page so the JS fires only on first
     # navigation to this page. After that the user can freely collapse/expand.
-    _expand_key = f"_sidebar_opened_{st.session_state.get('_current_page', 'x')}"
-    if not st.session_state.get(_expand_key):
-        st.session_state[_expand_key] = True
-        import streamlit.components.v1 as components
-        components.html("""
-        <script>
-        (function() {
-            function tryExpand() {
-                var doc = window.parent.document;
-                var sidebar = doc.querySelector('[data-testid="stSidebar"]');
-                if (!sidebar) return false;
-                if (sidebar.getAttribute('aria-expanded') === 'false') {
-                    // Try Streamlit 1.29+ selector first, then legacy
-                    var btn = doc.querySelector('[data-testid="stExpandSidebar"]')
-                           || doc.querySelector('[data-testid="collapsedControl"] button');
-                    if (btn) { btn.click(); }
-                }
-                return true;
-            }
-            var n = 0;
-            var t = setInterval(function() {
-                if (tryExpand() || n++ > 40) clearInterval(t);
-            }, 100);
-        })();
-        </script>
-        """, height=0)
+   

@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="SkillDrift — Career Focus Analyzer",
     page_icon="",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # Initialize session state defaults if not already set
