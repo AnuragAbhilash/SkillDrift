@@ -1,6 +1,7 @@
 # pages/08_market_intel.py
 
 import streamlit as st
+from session_store import init_session
 import plotly.graph_objects as go
 import pandas as pd
 from brain import load_city_job_counts, load_required_skills, CAREER_TRACKS, TRACK_TO_ROLE
@@ -12,6 +13,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+init_session()
 st.session_state["_current_page"] = "market"
 st.markdown(APPLE_CSS, unsafe_allow_html=True)
 render_sidebar()

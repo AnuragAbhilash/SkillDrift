@@ -1,6 +1,7 @@
 # pages/10_final_report.py
 
 import streamlit as st
+from session_store import init_session
 import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
@@ -13,6 +14,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+init_session()
 st.session_state["_current_page"] = "report"
 st.markdown(APPLE_CSS, unsafe_allow_html=True)
 render_sidebar()

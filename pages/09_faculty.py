@@ -1,6 +1,7 @@
 # pages/09_faculty.py — Window 9: Faculty Dashboard
 
 import streamlit as st
+from session_store import init_session
 import plotly.graph_objects as go
 import pandas as pd
 import seaborn as sns
@@ -20,6 +21,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+init_session()
 
 st.markdown("""
 <style>
