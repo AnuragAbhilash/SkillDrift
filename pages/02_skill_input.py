@@ -2,12 +2,7 @@
 
 import streamlit as st
 from datetime import datetime
-from brain import (
-    calculate_drift_score, calculate_entropy, calculate_career_match,
-    calculate_readiness_score, get_next_skill, get_urgency_level,
-    calculate_focus_debt, get_peer_placement_rate,
-)
-from gemini_quiz import run_skill_verification_quiz
+from gemini_quiz import reset_quiz_state
 
 st.set_page_config(
     page_title="SkillDrift — Skill Input",
@@ -322,6 +317,10 @@ if submit_skills:
         st.error("Please select at least 3 skills to continue.")
         st.stop()
 
+    # Wipe any stale quiz / proctor state from previous attempts so the
+    # new quiz starts fresh.
+    reset_quiz_state(full=False)
+
     st.session_state["student_name"]    = name_clean
     st.session_state["semester"]        = semester
     st.session_state["selected_skills"] = selected_skills
@@ -329,64 +328,10 @@ if submit_skills:
     st.session_state["quiz_complete"]   = False
     st.session_state["verified_skills"] = {}
 
-    st.success(f"Hello {name_clean}. {len(selected_skills)} skills selected. Starting quiz...")
-    st.rerun()
+    st.switch_page("pages/02b_quiz.py")
 
-# ── Quiz ───────────────────────────────────────────────────────────────────────
-if (
-    st.session_state.get("student_name")
-    and st.session_state.get("selected_skills")
-    and not st.session_state.get("quiz_complete")
-):
-    st.markdown("<hr style='border:none;border-top:1px solid #e2e8f0;margin:2rem 0;'>", unsafe_allow_html=True)
-
-    st.markdown(
-        f"<div style='font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:700;"
-        f"color:#171c1f;margin-bottom:6px;'>"
-        f"Welcome, {st.session_state['student_name']}</div>"
-        f"<div style='font-size:0.88rem;color:#515f74;margin-bottom:20px;'>"
-        f"{len(st.session_state['selected_skills'])} skills selected — "
-        f"now let us verify what you actually know.</div>",
-        unsafe_allow_html=True,
-    )
-
-    verified = run_skill_verification_quiz(st.session_state["selected_skills"])
-
-    if verified:
-        st.session_state["verified_skills"] = verified
-        st.session_state["quiz_complete"]   = True
-
-        with st.spinner("Running full career analysis..."):
-            drift_score, drift_label, track_counts = calculate_drift_score(verified)
-            entropy_score, entropy_label = calculate_entropy(track_counts)
-            career_matches = calculate_career_match(verified)
-            best_match = career_matches[0] if career_matches else {}
-            best_track = best_match.get("track", "Unknown")
-            match_pct  = best_match.get("match_pct", 0.0)
-            readiness  = calculate_readiness_score(verified, best_track)
-            next_skill = get_next_skill(best_match.get("missing_skills", []), best_track)
-            urgency    = get_urgency_level(st.session_state["semester"])
-            debt       = calculate_focus_debt(verified, best_track)
-            peer       = get_peer_placement_rate(drift_score, best_track)
-
-            st.session_state["drift_score"]     = drift_score
-            st.session_state["drift_label"]     = drift_label
-            st.session_state["track_counts"]    = track_counts
-            st.session_state["entropy_score"]   = entropy_score
-            st.session_state["entropy_label"]   = entropy_label
-            st.session_state["career_matches"]  = career_matches
-            st.session_state["best_track"]      = best_track
-            st.session_state["match_pct"]       = match_pct
-            st.session_state["readiness_score"] = readiness
-            st.session_state["next_skill_info"] = next_skill
-            st.session_state["urgency_info"]    = urgency
-            st.session_state["focus_debt_info"] = debt
-            st.session_state["peer_info"]       = peer
-
-        st.success("Analysis complete. Redirecting to your dashboard...")
-        st.switch_page("pages/03_drift_score.py")
-
-elif st.session_state.get("quiz_complete"):
+# Already completed? give a way back to the dashboard
+if st.session_state.get("quiz_complete"):
     st.markdown("<hr style='border:none;border-top:1px solid #e2e8f0;margin:2rem 0;'>", unsafe_allow_html=True)
     st.success(f"Quiz already completed, {st.session_state['student_name']}. Navigate using the sidebar.")
 
