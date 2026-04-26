@@ -184,60 +184,19 @@ html, body, .stApp {
 }
 input, textarea { -webkit-user-select: text !important; user-select: text !important; }
 
-/* Hide all zero/tiny-height utility iframes.
-   streamlit_js_eval renders with height="8", components.html with height="0".
-   Both must be hidden. Target by key class names to avoid hitting real content. */
-
-/* The proctor JS poll iframe: st-key-proctor_js_poll */
-.st-key-proctor_js_poll,
-.st-key-proctor_js_poll * {
-  display: none !important;
-  height: 0 !important;
-  width: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-}
-
-/* The autorefresh widget: st-key-quiz_autorefresh */
-.st-key-quiz_autorefresh,
-.st-key-quiz_autorefresh * {
-  display: none !important;
-  height: 0 !important;
-  width: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-}
-
-/* Generic fallback: any element-container containing a tiny iframe (height 0-10px) */
+/* Hide all zero-height utility iframes (body-class injectors, JS runners).
+   These are components.html(height=0) calls and must not create visual gaps. */
+/* Hide utility iframes (components.html height=0) but NOT inside the cam shell. */
 .element-container > iframe[height="0"],
-.element-container > iframe[height="8"],
-.element-container > iframe[style*="height: 0"],
-.element-container > iframe[style*="height:0"],
-[data-testid="stCustomComponentV1"] > iframe[height="0"],
-[data-testid="stCustomComponentV1"] > iframe[height="8"],
-[data-testid="stCustomComponentV1"] > iframe[style*="height: 0"] {
+[data-testid="stCustomComponentV1"] > iframe[height="0"] {
   display: none !important;
   height: 0 !important;
   width: 0 !important;
   position: absolute !important;
   pointer-events: none !important;
 }
-/* Collapse the wrapper too */
-.element-container:has(> iframe[height="0"]),
-.element-container:has(> iframe[height="8"]),
-.element-container:has(> iframe[style*="height: 0"]),
-.element-container:has(> [data-testid="stCustomComponentV1"] > iframe[height="0"]),
-.element-container:has(> [data-testid="stCustomComponentV1"] > iframe[height="8"]) {
-  display: none !important;
-  height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-[data-testid="stCustomComponentV1"]:has(> iframe[height="0"]),
-[data-testid="stCustomComponentV1"]:has(> iframe[height="8"]),
-[data-testid="stCustomComponentV1"]:has(> iframe[style*="height: 0"]) {
+/* Also collapse the wrapper element-container so no residual gap remains. */
+.element-container:has(> iframe[height="0"]) {
   display: none !important;
   height: 0 !important;
   margin: 0 !important;
@@ -836,72 +795,63 @@ with cam_container:
         unsafe_allow_html=True,
     )
 
-# Pin the WebRTC block as sd-cam-shell.
-# Placed inside cam_container so the components.html wrapper iframe joins
-# the sd-cam-shell block (fixed top-right) and is removed from main page
-# flow — eliminating the horizontal line above the blue assessment header.
-with cam_container:
-    components.html(
-        """
-        <script>
-        (function(){
-          var doc=window.parent.document;
-          function pin(){
-            var blocks=doc.querySelectorAll('[data-testid="stVerticalBlock"]');
-            var target=null;
-            for(var i=0;i<blocks.length;i++){
-              var b=blocks[i];
-              if(b.querySelector('iframe[title*="webrtc"],iframe[title*="streamlit_webrtc"]')){
-                var nested=b.querySelectorAll('[data-testid="stVerticalBlock"]');
-                var deeper=false;
-                for(var j=0;j<nested.length;j++){
-                  if(nested[j]!==b &&
-                     nested[j].querySelector('iframe[title*="webrtc"],iframe[title*="streamlit_webrtc"]')){
-                    deeper=true; break;
-                  }
-                }
-                if(!deeper){target=b;break;}
+# Pin the WebRTC block as sd-cam-shell
+components.html(
+    """
+    <script>
+    (function(){
+      var doc=window.parent.document;
+      function pin(){
+        var blocks=doc.querySelectorAll('[data-testid="stVerticalBlock"]');
+        var target=null;
+        for(var i=0;i<blocks.length;i++){
+          var b=blocks[i];
+          if(b.querySelector('iframe[title*="webrtc"],iframe[title*="streamlit_webrtc"]')){
+            var nested=b.querySelectorAll('[data-testid="stVerticalBlock"]');
+            var deeper=false;
+            for(var j=0;j<nested.length;j++){
+              if(nested[j]!==b &&
+                 nested[j].querySelector('iframe[title*="webrtc"],iframe[title*="streamlit_webrtc"]')){
+                deeper=true; break;
               }
             }
-            if(!target) return false;
-            if(!target.classList.contains('sd-cam-shell'))
-              target.classList.add('sd-cam-shell');
-            // Inject title if not already present
-            if(!target.querySelector('.sd-cam-title')){
-              var t2=doc.createElement('div');
-              t2.className='sd-cam-title';
-              t2.textContent='Live Camera Monitor';
-              target.insertBefore(t2,target.firstChild);
-            }
-            // Hide any hr/divider elements Streamlit injects inside cam shell
-            target.querySelectorAll('hr,[data-testid="stDivider"]').forEach(function(el){
-              el.style.setProperty('display','none','important');
-            });
-            // Hide the zero-height pin-script iframe wrapper inside the cam shell
-            target.querySelectorAll('iframe[height="0"]').forEach(function(f){
-              var wrap=f.closest('.element-container')||f.parentElement;
-              if(wrap) wrap.style.setProperty('display','none','important');
-            });
-            target.querySelectorAll('video').forEach(function(v){
-              try{
-                v.removeAttribute('controls'); v.controls=false;
-                v.disablePictureInPicture=true;
-                v.setAttribute('disablePictureInPicture','');
-                v.setAttribute('controlslist','nodownload nofullscreen noremoteplayback');
-              }catch(e){}
-            });
-            target.querySelectorAll('button,select').forEach(function(el){
-              el.style.setProperty('display','none','important');
-            });
-            return true;
+            if(!deeper){target=b;break;}
           }
-          var tries=0;
-          var t=setInterval(function(){ tries++; pin(); if(tries>60) clearInterval(t); },100);
-        })();
-        </script>
-        """,
-        height=0,
-    )
+        }
+        if(!target) return false;
+        if(!target.classList.contains('sd-cam-shell'))
+          target.classList.add('sd-cam-shell');
+        // Inject title if not already present
+        if(!target.querySelector('.sd-cam-title')){
+          var t2=doc.createElement('div');
+          t2.className='sd-cam-title';
+          t2.textContent='Live Camera Monitor';
+          target.insertBefore(t2,target.firstChild);
+        }
+        // Hide any hr/divider elements Streamlit injects inside cam shell
+        target.querySelectorAll('hr,[data-testid="stDivider"]').forEach(function(el){
+          el.style.setProperty('display','none','important');
+        });
+        target.querySelectorAll('video').forEach(function(v){
+          try{
+            v.removeAttribute('controls'); v.controls=false;
+            v.disablePictureInPicture=true;
+            v.setAttribute('disablePictureInPicture','');
+            v.setAttribute('controlslist','nodownload nofullscreen noremoteplayback');
+          }catch(e){}
+        });
+        target.querySelectorAll('button,select').forEach(function(el){
+          el.style.setProperty('display','none','important');
+        });
+        return true;
+      }
+      var tries=0;
+      var t=setInterval(function(){ tries++; pin(); if(tries>60) clearInterval(t); },100);
+    })();
+    </script>
+    """,
+    height=0,
+)
 
 
 # =============================================================
