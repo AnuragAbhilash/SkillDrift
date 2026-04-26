@@ -6,3 +6,4 @@ reports/
 *.egg-info/
 dist/
 .env
+data/sessions/

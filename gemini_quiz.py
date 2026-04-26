@@ -1,5 +1,6 @@
 import json
 import re
+import textwrap
 import time
 import streamlit as st
 from google import genai
@@ -298,8 +299,7 @@ def ensure_quiz_data(selected_skills: dict):
                     "<div class='sd-quiz-loader-status'>Starting...</div>"
                 )
 
-        loader.markdown(
-            f"""
+        loader_html = textwrap.dedent(f"""
             <style>
             .sd-loader-fixed {{
                 position: fixed;
@@ -377,9 +377,13 @@ def ensure_quiz_data(selected_skills: dict):
                 {status_html}
               </div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        """).strip()
+        # IMPORTANT: dedent + strip removes the leading-whitespace
+        # that was tricking Streamlit's markdown processor into
+        # rendering the entire HTML body as an indented code block
+        # (which is what produced the "raw HTML in a code box"
+        # flash the user reported).
+        loader.markdown(loader_html, unsafe_allow_html=True)
 
     _render_loader(0.0, None, 0, max(len(selected_skills), 1))
 
@@ -401,10 +405,11 @@ def ensure_quiz_data(selected_skills: dict):
         })
         time.sleep(0.2)
 
-    _render_loader(1.0, None, total, total, done=True)
-    time.sleep(0.4)
-
-    # Clear EVERY pixel of loader UI completely.
+    # Skip the done=True final render - it was prone to a Streamlit
+    # markdown bug where blank lines inside the f-string caused the
+    # entire HTML body to be re-interpreted as an indented code block,
+    # showing raw HTML to the user for ~400 ms. Clearing the loader
+    # directly is a clean and instant transition into the in-test view.
     loader.empty()
 
     st.session_state["quiz_data"]     = quiz_data
