@@ -206,14 +206,21 @@ input, textarea { -webkit-user-select: text !important; user-select: text !impor
 
 /* Hide all zero-height utility iframes (body-class injectors, JS runners).
    These are components.html(height=0) calls and must not create visual gaps. */
-iframe[height="0"],
-iframe[style*="height: 0"],
-iframe[style*="height:0"] {
+/* Hide utility iframes (components.html height=0) but NOT inside the cam shell. */
+.element-container > iframe[height="0"],
+[data-testid="stCustomComponentV1"] > iframe[height="0"] {
   display: none !important;
   height: 0 !important;
   width: 0 !important;
   position: absolute !important;
   pointer-events: none !important;
+}
+
+/* Always show iframes inside the camera panel — never hide them. */
+.sd-cam-shell iframe {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
 }
 
 /* Default (pre-test / terminated) layout — centred narrow */
