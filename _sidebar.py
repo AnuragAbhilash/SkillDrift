@@ -4,6 +4,8 @@ import streamlit as st
 import plotly.graph_objects as go
 import streamlit.components.v1 as components
 
+from session_store import clear_session
+
 # ── Global CSS ─────────────────────────────────────────────────────────────
 APPLE_CSS = """
 <style>
@@ -483,8 +485,8 @@ def render_sidebar():
                 st.session_state["_show_signout_dialog"] = False
                 st.rerun()
             if confirm_clicked:
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
+                # Clear persisted session on disk AND in memory.
+                clear_session()
                 st.switch_page("pages/01_home.py")
 
             components.html("""

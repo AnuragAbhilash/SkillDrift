@@ -1,5 +1,6 @@
 import json
 import re
+import textwrap
 import time
 import streamlit as st
 from google import genai
@@ -261,31 +262,155 @@ def ensure_quiz_data(selected_skills: dict):
         return st.session_state["quiz_data"]
 
     if not configure_gemini():
-        st.error("Cannot generate quiz — Gemini not configured.")
+        st.error("Cannot generate quiz - Gemini not configured.")
         return None
 
-    with st.spinner("Generating personalized quiz questions via Gemini AI..."):
-        prog = st.progress(0)
-        quiz_data = []
-        total = max(len(selected_skills), 1)
-        for i, (skill, level) in enumerate(selected_skills.items()):
-            prog.progress(i / total,
-                          text=f"Generating questions for {skill} ({level})...")
-            prompt    = build_quiz_prompt(skill, level)
-            questions = call_gemini_with_retry(prompt, skill)
-            source = "gemini"
-            if not questions:
-                questions = fallback_questions(skill, level)
-                source = "fallback"
-            quiz_data.append({
-                "skill":     skill,
-                "level":     level,
-                "questions": questions[:3],
-                "source":    source,
-            })
-            time.sleep(0.25)
-        prog.progress(1.0, text="Questions ready.")
-        time.sleep(0.3)
+    # ALL loader UI lives inside ONE st.empty() placeholder rendered
+    # as pure HTML. No st.progress, no st.spinner. That means a
+    # single .empty() call removes every trace of the loader -
+    # no leftover progress bar or status line above the next page.
+    loader = st.empty()
+
+    def _render_loader(progress_pct: float, current_skill: str | None,
+                       current_idx: int, total_count: int,
+                       done: bool = False):
+        # progress_pct is 0..1
+        bar_width = max(0.0, min(1.0, progress_pct)) * 100.0
+        if done:
+            status_html = (
+                "<div class='sd-quiz-loader-status' style='color:#15803d;'>"
+                "All questions generated successfully.</div>"
+            )
+            spin_html = ""
+            sub_text  = "Loading your test..."
+        else:
+            spin_html = "<div class='sd-quiz-loader-spin'></div>"
+            sub_text  = ("Our AI is preparing questions tailored to every "
+                         "skill and level you selected. This usually takes "
+                         "a few seconds.")
+            if current_skill:
+                status_html = (
+                    f"<div class='sd-quiz-loader-status'>"
+                    f"Skill {current_idx} of {total_count} &middot; "
+                    f"{current_skill}</div>"
+                )
+            else:
+                status_html = (
+                    "<div class='sd-quiz-loader-status'>Starting...</div>"
+                )
+
+        loader_html = textwrap.dedent(f"""
+            <style>
+            .sd-loader-fixed {{
+                position: fixed;
+                inset: 0;
+                background: #f6fafe;
+                z-index: 9000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            }}
+            .sd-quiz-loader-card {{
+                width: 100%;
+                max-width: 520px;
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 14px;
+                padding: 32px 32px 26px 32px;
+                box-shadow: 0 8px 30px rgba(23,28,31,0.06);
+                text-align: center;
+            }}
+            .sd-quiz-loader-title {{
+                font-family: 'Manrope', sans-serif;
+                font-size: 1.15rem;
+                font-weight: 800;
+                color: #002c98;
+                margin-bottom: 6px;
+            }}
+            .sd-quiz-loader-sub {{
+                font-size: 0.88rem;
+                color: #515f74;
+                margin-bottom: 20px;
+                line-height: 1.5;
+            }}
+            .sd-quiz-loader-spin {{
+                width: 38px; height: 38px;
+                border: 3px solid #e2e8f0;
+                border-top-color: #002c98;
+                border-radius: 50%;
+                margin: 0 auto 18px auto;
+                animation: sd-spin 0.85s linear infinite;
+            }}
+            @keyframes sd-spin {{ to {{ transform: rotate(360deg); }} }}
+            .sd-quiz-bar-track {{
+                width: 100%;
+                height: 8px;
+                background: #e2e8f0;
+                border-radius: 4px;
+                overflow: hidden;
+                margin-top: 4px;
+            }}
+            .sd-quiz-bar-fill {{
+                height: 100%;
+                background: #002c98;
+                border-radius: 4px;
+                transition: width 0.3s ease;
+            }}
+            .sd-quiz-loader-status {{
+                font-size: 0.82rem;
+                color: #171c1f;
+                font-weight: 600;
+                margin-top: 14px;
+                min-height: 1.2em;
+            }}
+            </style>
+            <div class="sd-loader-fixed">
+              <div class="sd-quiz-loader-card">
+                {spin_html}
+                <div class="sd-quiz-loader-title">Generating your personalized quiz</div>
+                <div class="sd-quiz-loader-sub">{sub_text}</div>
+                <div class="sd-quiz-bar-track">
+                  <div class="sd-quiz-bar-fill" style="width:{bar_width:.1f}%;"></div>
+                </div>
+                {status_html}
+              </div>
+            </div>
+        """).strip()
+        # IMPORTANT: dedent + strip removes the leading-whitespace
+        # that was tricking Streamlit's markdown processor into
+        # rendering the entire HTML body as an indented code block
+        # (which is what produced the "raw HTML in a code box"
+        # flash the user reported).
+        loader.markdown(loader_html, unsafe_allow_html=True)
+
+    _render_loader(0.0, None, 0, max(len(selected_skills), 1))
+
+    quiz_data = []
+    total = max(len(selected_skills), 1)
+    for i, (skill, level) in enumerate(selected_skills.items()):
+        _render_loader(i / total, skill, i + 1, total)
+        prompt    = build_quiz_prompt(skill, level)
+        questions = call_gemini_with_retry(prompt, skill)
+        source = "gemini"
+        if not questions:
+            questions = fallback_questions(skill, level)
+            source = "fallback"
+        quiz_data.append({
+            "skill":     skill,
+            "level":     level,
+            "questions": questions[:3],
+            "source":    source,
+        })
+        time.sleep(0.2)
+
+    # Skip the done=True final render - it was prone to a Streamlit
+    # markdown bug where blank lines inside the f-string caused the
+    # entire HTML body to be re-interpreted as an indented code block,
+    # showing raw HTML to the user for ~400 ms. Clearing the loader
+    # directly is a clean and instant transition into the in-test view.
+    loader.empty()
 
     st.session_state["quiz_data"]     = quiz_data
     st.session_state["quiz_data_sig"] = selected_sig

@@ -1,6 +1,7 @@
 # pages/01_home.py
 
 import streamlit as st
+from session_store import init_session
 
 st.set_page_config(
     page_title="SkillDrift — Career Focus Analyzer",
@@ -8,6 +9,8 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed",
 )
+
+init_session()
 
 st.markdown("""
 <style>
