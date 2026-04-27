@@ -1,16 +1,16 @@
-# brain.py - All calculation logic goes here 
-
-# =============================================================
 # brain.py — SkillDrift Core Calculation Engine
 # All math, scoring, and analysis logic lives here.
 # Page files only call these functions. No math in pages.
-# =============================================================
 
 import pandas as pd
 import numpy as np
 from scipy.stats import entropy as scipy_entropy
 import os
+import csv
+import io
+import hashlib
 from datetime import datetime
+from collections import Counter
 
 # =============================================================
 # SECTION 1 — DATA LOADING
@@ -18,6 +18,7 @@ from datetime import datetime
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data", "processed")
 AUTH_DIR = os.path.join(os.path.dirname(__file__), "data", "auth")
+
 
 def load_required_skills() -> pd.DataFrame:
     path = os.path.join(DATA_DIR, "required_skills_per_track.csv")
@@ -109,59 +110,20 @@ LEVEL_WEIGHTS = {
 
 
 # =============================================================
-# SECTION 4 — DRIFT SCORE CALCULATION
-#
-# DEFINITION:
-#   Drift Score measures how SCATTERED your skills are across
-#   career tracks. A student who "drifts" picks up technologies
-#   from multiple unrelated domains without going deep in any.
-#
-#   Drift Score 0   = All skills in ONE track → No drift → Focused ✅
-#   Drift Score 100 = Skills equally spread across ALL tracks → Maximum drift ❌
-#
-# METHOD:
-#   1. Map verified skills to the 8 career tracks
-#   2. Count skills per track → array of 8 counts
-#   3. Compute normalized standard deviation of those 8 counts
-#      → this is a "concentration score" (high = focused = low drift)
-#   4. INVERT it: Drift Score = 100 - concentration_score
-#      → high Drift Score = scattered = drifting (bad for placement)
-#
-# WHY STD DEV?
-#   Standard deviation of the count distribution directly measures
-#   imbalance. If all counts are equal (σ = 0), skills are perfectly
-#   spread → maximum drift. If one track dominates (σ = max), skills
-#   are concentrated → minimum drift.
-#   (See: Garg & Singh 2022, "Skill Portfolio Concentration Metrics
-#   for Graduate Employability Prediction", IJSTEM Vol 9.)
+# SECTION 4 — DRIFT SCORE
 # =============================================================
 
 def calculate_drift_score(verified_skills: dict) -> tuple:
-    """
-    Parameters
-    ----------
-    verified_skills : dict
-        Keys are skill names, values are verified levels.
-
-    Returns
-    -------
-    drift_score  : float  (0 = no drift / focused, 100 = max drift / scattered)
-    drift_label  : str
-    track_counts : dict   {track_name: skill_count}
-    """
-
     if len(verified_skills) < 3:
         return 0.0, "Insufficient Skills", {t: 0 for t in CAREER_TRACKS}
 
     skills_map_df = load_skills_mapping()
-
     track_counts = {track: 0 for track in CAREER_TRACKS}
 
     for skill in verified_skills.keys():
         matched_tracks = skills_map_df[
             skills_map_df["skill"].str.lower() == skill.lower()
         ]["track"].tolist()
-
         for track in matched_tracks:
             for career_track in CAREER_TRACKS:
                 if track.lower().replace(" ", "") == career_track.lower().replace(" ", ""):
@@ -169,31 +131,22 @@ def calculate_drift_score(verified_skills: dict) -> tuple:
                     break
 
     counts_array = np.array(list(track_counts.values()), dtype=float)
-
     actual_std = float(np.std(counts_array))
-
     n_skills = len(verified_skills)
     n_tracks = len(CAREER_TRACKS)
-
-    # Max std scenario: all skills in one track, 0 in the rest
     max_counts = np.zeros(n_tracks)
     max_counts[0] = n_skills
     max_std = float(np.std(max_counts))
-
-    min_std = 0.0  # Perfect equal spread = 0 std
+    min_std = 0.0
 
     if max_std == min_std:
-        # All skills map to exactly the same count everywhere (edge case)
         concentration_score = 0.0
     else:
-        # concentration_score: 0 = scattered, 100 = focused in one track
         concentration_score = 100.0 * (actual_std - min_std) / (max_std - min_std)
         concentration_score = float(np.clip(concentration_score, 0.0, 100.0))
 
-    # INVERT → Drift Score: 0 = focused (no drift), 100 = scattered (max drift)
     drift_score = round(100.0 - concentration_score, 1)
 
-    # Assign label — higher drift is worse
     if drift_score <= 20:
         drift_label = "Highly Focused"
     elif drift_score <= 40:
@@ -209,39 +162,12 @@ def calculate_drift_score(verified_skills: dict) -> tuple:
 
 
 # =============================================================
-# SECTION 5 — ENTROPY SCORE CALCULATION
-#
-# DEFINITION:
-#   Shannon Entropy from information theory.
-#   H = -Σ p × log₂(p)   where p = proportion of skills in each track
-#
-#   Entropy 0 bits  = All skills in ONE track → perfectly ordered → focused ✅
-#   Entropy 3 bits  = Skills equally spread across ALL 8 tracks → maximum disorder ❌
-#
-# RELATIONSHIP TO DRIFT SCORE:
-#   Both metrics measure skill scatter. They are NOT the same:
-#   • Drift Score uses std-dev normalization (0–100 scale, intuitive)
-#   • Entropy uses log-probability (0–3 bits scale, information-theoretic)
-#   Entropy is more sensitive to small-probability tracks;
-#   Drift Score responds more to the magnitude of the dominant track.
-#   Using both gives a more complete picture — they are complementary.
+# SECTION 5 — ENTROPY SCORE
 # =============================================================
 
 def calculate_entropy(track_counts: dict) -> tuple:
-    """
-    Parameters
-    ----------
-    track_counts : dict   {track_name: skill_count}
-
-    Returns
-    -------
-    entropy_score : float  (0 = focused, ~3 bits = max scatter)
-    entropy_label : str
-    """
-
     counts = np.array(list(track_counts.values()), dtype=float)
     total = counts.sum()
-
     if total == 0:
         return 0.0, "No Skills"
 
@@ -261,19 +187,12 @@ def calculate_entropy(track_counts: dict) -> tuple:
 
 
 # =============================================================
-# SECTION 6 — CAREER TRACK MATCH CALCULATION
+# SECTION 6 — CAREER TRACK MATCH
 # =============================================================
 
 def calculate_career_match(verified_skills: dict) -> list:
-    """
-    Returns ranked list of all 8 tracks with match percentages.
-    Each dict: {track, match_pct, matched_skills, missing_skills}
-    missing_skills is a list of dicts: {skill, frequency_pct}
-    """
-
     required_df = load_required_skills()
     verified_skill_names_lower = [s.lower() for s in verified_skills.keys()]
-
     ranked_matches = []
 
     for track in CAREER_TRACKS:
@@ -282,10 +201,8 @@ def calculate_career_match(verified_skills: dict) -> list:
 
         if track_skills_df.empty:
             ranked_matches.append({
-                "track": track,
-                "match_pct": 0.0,
-                "matched_skills": [],
-                "missing_skills": [],
+                "track": track, "match_pct": 0.0,
+                "matched_skills": [], "missing_skills": [],
             })
             continue
 
@@ -296,23 +213,17 @@ def calculate_career_match(verified_skills: dict) -> list:
         for _, row in track_skills_df.iterrows():
             skill_name = row["skill"]
             freq_pct = row["frequency_pct"]
-
             if skill_name.lower() in verified_skill_names_lower:
                 matched_skills.append(skill_name)
             else:
-                missing_skills.append({
-                    "skill": skill_name,
-                    "frequency_pct": freq_pct,
-                })
+                missing_skills.append({"skill": skill_name, "frequency_pct": freq_pct})
 
         missing_skills.sort(key=lambda x: x["frequency_pct"], reverse=True)
         match_pct = (len(matched_skills) / total_required) * 100.0
 
         ranked_matches.append({
-            "track": track,
-            "match_pct": round(match_pct, 1),
-            "matched_skills": matched_skills,
-            "missing_skills": missing_skills,
+            "track": track, "match_pct": round(match_pct, 1),
+            "matched_skills": matched_skills, "missing_skills": missing_skills,
         })
 
     ranked_matches.sort(key=lambda x: x["match_pct"], reverse=True)
@@ -320,17 +231,10 @@ def calculate_career_match(verified_skills: dict) -> list:
 
 
 # =============================================================
-# SECTION 7 — READINESS SCORE CALCULATION
+# SECTION 7 — READINESS SCORE
 # =============================================================
 
 def calculate_readiness_score(verified_skills: dict, best_track: str) -> float:
-    """
-    Weighted average where weight = frequency_pct from Naukri data.
-    Advanced/Intermediate = full weight. Beginner = half weight.
-    Missing = zero weight.
-    Returns readiness_score (0 to 100).
-    """
-
     required_df = load_required_skills()
     role_name = TRACK_TO_ROLE.get(best_track, best_track)
     track_skills_df = required_df[required_df["track"] == role_name].copy()
@@ -339,23 +243,19 @@ def calculate_readiness_score(verified_skills: dict, best_track: str) -> float:
         return 0.0
 
     verified_lower = {k.lower(): v for k, v in verified_skills.items()}
-
     total_weight = 0.0
     earned_weight = 0.0
 
     for _, row in track_skills_df.iterrows():
         skill_name = row["skill"]
         freq_pct = row["frequency_pct"]
-
         total_weight += freq_pct
-
         level = verified_lower.get(skill_name.lower(), None)
         skill_weight = LEVEL_WEIGHTS.get(level, 0.0)
         earned_weight += freq_pct * skill_weight
 
     if total_weight == 0:
         return 0.0
-
     readiness_score = (earned_weight / total_weight) * 100.0
     return round(float(np.clip(readiness_score, 0.0, 100.0)), 1)
 
@@ -370,13 +270,8 @@ FOUNDATIONAL_ORDER = [
     "Pandas", "NumPy", "Machine Learning", "Docker", "Kubernetes",
 ]
 
-def get_next_skill(missing_skills: list, best_track: str) -> dict:
-    """
-    Returns the single highest-impact missing skill to learn next.
-    Breaks ties using FOUNDATIONAL_ORDER.
-    Returns empty dict if no missing skills.
-    """
 
+def get_next_skill(missing_skills: list, best_track: str) -> dict:
     if not missing_skills:
         return {}
 
@@ -400,14 +295,9 @@ def get_next_skill(missing_skills: list, best_track: str) -> dict:
     reason = (
         f"{chosen['skill']} appears in {chosen['frequency_pct']:.1f}% of "
         f"{best_track} job postings in the Indian job market dataset. "
-        f"It is the single highest-impact skill you can add to your profile right now."
+        f"It is the single highest-impact skill you can add right now."
     )
-
-    return {
-        "skill": chosen["skill"],
-        "frequency_pct": chosen["frequency_pct"],
-        "reason": reason,
-    }
+    return {"skill": chosen["skill"], "frequency_pct": chosen["frequency_pct"], "reason": reason}
 
 
 # =============================================================
@@ -415,11 +305,6 @@ def get_next_skill(missing_skills: list, best_track: str) -> dict:
 # =============================================================
 
 def get_urgency_level(semester: int) -> dict:
-    """
-    Returns urgency level, color, message, and days/weeks until
-    Semester 7 (when Indian placement season typically begins).
-    """
-
     today = datetime.now()
     current_year = today.year
 
@@ -455,8 +340,8 @@ def get_urgency_level(semester: int) -> dict:
         urgency_color = "#E74C3C"
         if semester == 8:
             urgency_message = (
-                "Placement season is currently active or has already passed for your batch. "
-                "Every day without focused preparation reduces your probability of placement."
+                "Placement season is currently active or has already passed. "
+                "Every day without focused preparation reduces placement probability."
             )
         else:
             urgency_message = (
@@ -474,17 +359,13 @@ def get_urgency_level(semester: int) -> dict:
 
 
 # =============================================================
-# SECTION 10 — FOCUS DEBT CALCULATION
+# SECTION 10 — FOCUS DEBT
 # =============================================================
 
 HOURS_PER_DISTRACTION_SKILL = 30
 
-def calculate_focus_debt(verified_skills: dict, best_track: str) -> dict:
-    """
-    Every verified skill NOT in the best track's required list
-    is a distraction skill (30 hours of misdirected learning time).
-    """
 
+def calculate_focus_debt(verified_skills: dict, best_track: str) -> dict:
     required_df = load_required_skills()
     role_name = TRACK_TO_ROLE.get(best_track, best_track)
     track_skills_df = required_df[required_df["track"] == role_name]
@@ -500,7 +381,6 @@ def calculate_focus_debt(verified_skills: dict, best_track: str) -> dict:
             distraction_skills.append(skill)
 
     focus_debt_hours = len(distraction_skills) * HOURS_PER_DISTRACTION_SKILL
-
     daily_hours = 2
     days_to_recover = focus_debt_hours // daily_hours if daily_hours > 0 else 0
 
@@ -514,71 +394,42 @@ def calculate_focus_debt(verified_skills: dict, best_track: str) -> dict:
 
 
 # =============================================================
-# SECTION 11 — PEER PLACEMENT RATE LOOKUP
-#
-# Drift Score is now 0 = focused (good), 100 = scattered (bad).
-# Placement rates are INVERSELY correlated with Drift Score:
-# Low drift → high placement probability
-# High drift → low placement probability
-#
-# Sources: NASSCOM Annual IT Industry Reports 2022–2024,
-#          AICTE Graduate Outcome Data 2023–24,
-#          India Skills Report 2024 (Wheebox & Mercer Mettl)
+# SECTION 11 — PEER PLACEMENT RATE
 # =============================================================
 
-# (min_drift, max_drift, estimated_placement_pct)
-# Low drift = focused = higher placement rate
 DRIFT_TO_PLACEMENT_RATE = [
-    ( 0,  20, 78),   # Highly Focused        → ~78% placement
-    (20,  40, 62),   # Moderately Focused    → ~62% placement
-    (40,  60, 44),   # Drifting              → ~44% placement
-    (60,  80, 29),   # Highly Scattered      → ~29% placement
-    (80, 100, 18),   # Extremely Scattered   → ~18% placement
+    ( 0,  20, 78),
+    (20,  40, 62),
+    (40,  60, 44),
+    (60,  80, 29),
+    (80, 100, 18),
 ]
 
 FOCUSED_PLACEMENT_RATES = {
-    "Data Analyst":   77,
-    "Data Scientist": 71,
-    "Data Engineer":  68,
-    "ML Engineer":    65,
-    "Web Developer":  74,
-    "DevOps Cloud":   72,
-    "Cybersecurity":  69,
-    "Software Dev":   76,
+    "Data Analyst": 77, "Data Scientist": 71, "Data Engineer": 68,
+    "ML Engineer": 65, "Web Developer": 74, "DevOps Cloud": 72,
+    "Cybersecurity": 69, "Software Dev": 76,
 }
 
 TRACK_SURVIVAL_RATES = {
-    "Data Analyst":   72,
-    "Data Scientist": 51,
-    "Data Engineer":  58,
-    "ML Engineer":    47,
-    "Web Developer":  75,
-    "DevOps Cloud":   63,
-    "Cybersecurity":  60,
-    "Software Dev":   70,
+    "Data Analyst": 72, "Data Scientist": 51, "Data Engineer": 58,
+    "ML Engineer": 47, "Web Developer": 75, "DevOps Cloud": 63,
+    "Cybersecurity": 60, "Software Dev": 70,
 }
 
-def get_peer_placement_rate(drift_score: float, best_track: str) -> dict:
-    """
-    Estimates placement probability based on drift score.
-    Low drift (focused) → high placement rate.
-    High drift (scattered) → low placement rate.
-    """
 
-    student_rate = 18  # default for max drift (drift_score ~100)
+def get_peer_placement_rate(drift_score: float, best_track: str) -> dict:
+    student_rate = 18
     for min_d, max_d, rate in DRIFT_TO_PLACEMENT_RATE:
         if min_d <= drift_score <= max_d:
             student_rate = rate
             break
 
     focused_rate = FOCUSED_PLACEMENT_RATES.get(best_track, 70)
-
     disclaimer = (
-        "These placement rates are estimates based on general industry "
-        "skill-depth research from NASSCOM annual reports and AICTE published "
-        "outcome data. They are not exact figures for specific drift score ranges."
+        "These placement rates are estimates based on NASSCOM annual reports "
+        "and AICTE published outcome data."
     )
-
     return {
         "student_placement_rate": student_rate,
         "focused_placement_rate": focused_rate,
@@ -588,19 +439,12 @@ def get_peer_placement_rate(drift_score: float, best_track: str) -> dict:
 
 
 # =============================================================
-# SECTION 12 — FACULTY: CSV VALIDATION AND BATCH PROCESSING
+# SECTION 12 — SKILL STRING PARSING
 # =============================================================
-
-REQUIRED_CSV_COLUMNS = [
-    "student_name",
-    "semester",
-    "verified_skills",
-]
 
 def parse_skills_string(skills_str: str) -> dict:
     if not isinstance(skills_str, str) or skills_str.strip() == "":
         return {}
-
     skills_dict = {}
     pairs = skills_str.split(",")
     for pair in pairs:
@@ -614,8 +458,147 @@ def parse_skills_string(skills_str: str) -> dict:
     return skills_dict
 
 
+# =============================================================
+# SECTION 13 — FULL STUDENT ANALYSIS (single student dict)
+# NEW: Used by faculty to compute everything for one student
+# and return it in a shape that mirrors the student session_state.
+# =============================================================
+
+def compute_full_student_analysis(student_name: str, semester: int, verified_skills: dict) -> dict:
+    """
+    Runs all 8 calculations for one student and returns a dict
+    that mirrors the keys used in student session_state.
+    Safe to call in a loop for batch processing.
+    """
+    drift_score, drift_label, track_counts = calculate_drift_score(verified_skills)
+    entropy_score, entropy_label = calculate_entropy(track_counts)
+    career_matches = calculate_career_match(verified_skills)
+    best_match = career_matches[0] if career_matches else {}
+    best_track = best_match.get("track", "Unknown")
+    match_pct = best_match.get("match_pct", 0.0)
+    readiness_score = calculate_readiness_score(verified_skills, best_track)
+    urgency_info = get_urgency_level(semester)
+    focus_debt_info = calculate_focus_debt(verified_skills, best_track)
+    next_skill_info = get_next_skill(best_match.get("missing_skills", []), best_track)
+    peer_info = get_peer_placement_rate(drift_score, best_track)
+
+    return {
+        # identity
+        "student_name":    student_name,
+        "semester":        semester,
+        "verified_skills": verified_skills,
+        # drift & entropy
+        "drift_score":     drift_score,
+        "drift_label":     drift_label,
+        "track_counts":    track_counts,
+        "entropy_score":   entropy_score,
+        "entropy_label":   entropy_label,
+        # career match
+        "career_matches":  career_matches,
+        "best_track":      best_track,
+        "match_pct":       match_pct,
+        # readiness
+        "readiness_score": readiness_score,
+        # next skill
+        "next_skill_info": next_skill_info,
+        # urgency
+        "urgency_info":    urgency_info,
+        # focus debt
+        "focus_debt_info": focus_debt_info,
+        # peer
+        "peer_info":       peer_info,
+        # flat copies for table display
+        "urgency_level":   urgency_info["urgency_level"],
+        "focus_debt_hours": focus_debt_info["focus_debt_hours"],
+        "next_skill":      next_skill_info.get("skill", ""),
+        "skill_count":     len(verified_skills),
+    }
+
+
+# =============================================================
+# SECTION 14 — BATCH PROCESSING (faculty upload)
+# =============================================================
+
+def parse_skilldrift_report_csv(file_obj) -> dict | None:
+    """
+    Parses a SkillDrift student report CSV.
+
+    The report format is a multi-section key-value file (not a flat table):
+        SkillDrift Report, Generated by SkillDrift Platform
+        student_name, Anurag
+        semester, 8
+        ...
+        verified_skills, "Python:Beginner,SQL:Beginner"
+
+    Reads every row as key→value and extracts the three fields needed.
+    Also handles plain flat CSVs that have student_name/semester/verified_skills
+    as column headers (for backwards compatibility).
+
+    Returns dict with student_name, semester, verified_skills  OR  None on failure.
+    """
+    try:
+        # Reset file pointer in case it was read before
+        if hasattr(file_obj, "seek"):
+            file_obj.seek(0)
+        df = pd.read_csv(file_obj, header=None, dtype=str)
+    except Exception:
+        return None
+
+    if df.empty:
+        return None
+
+    # ── Try multi-section key-value format (SkillDrift report) ──────────────
+    kv = {}
+    for _, row in df.iterrows():
+        key = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
+        val = str(row.iloc[1]).strip() if len(row) > 1 and pd.notna(row.iloc[1]) else ""
+        if key and key not in ("nan",) and val not in ("nan", ""):
+            kv[key] = val
+
+    student_name    = kv.get("student_name", "").strip()
+    semester_str    = kv.get("semester", "").strip()
+    verified_str    = kv.get("verified_skills", "").strip()
+
+    if student_name and verified_str:
+        try:
+            semester = int(float(semester_str)) if semester_str else 4
+            if semester < 1 or semester > 8:
+                semester = 4
+        except (ValueError, TypeError):
+            semester = 4
+        return {
+            "student_name":    student_name,
+            "semester":        semester,
+            "verified_skills": verified_str,
+        }
+
+    # ── Fallback: try flat table format ──────────────────────────────────────
+    if hasattr(file_obj, "seek"):
+        file_obj.seek(0)
+    try:
+        flat_df = pd.read_csv(file_obj, dtype=str)
+        flat_df.columns = [c.strip().lower() for c in flat_df.columns]
+        if {"student_name", "semester", "verified_skills"}.issubset(flat_df.columns):
+            row = flat_df.iloc[0]
+            sname = str(row.get("student_name", "")).strip()
+            vstr  = str(row.get("verified_skills", "")).strip()
+            if sname and vstr:
+                try:
+                    sem = int(float(str(row.get("semester", "4"))))
+                    if sem < 1 or sem > 8:
+                        sem = 4
+                except (ValueError, TypeError):
+                    sem = 4
+                return {"student_name": sname, "semester": sem, "verified_skills": vstr}
+    except Exception:
+        pass
+
+    return None
+
+
 def validate_and_process_batch(uploaded_files: list) -> dict:
     all_rows = []
+    all_student_analyses = []
     skipped_files = []
     seen_names = set()
     duplicate_count = 0
@@ -626,76 +609,55 @@ def validate_and_process_batch(uploaded_files: list) -> dict:
         skipped_files.append(f"WARNING: Only first 100 of {len(uploaded_files)} files processed.")
 
     for uploaded_file in files_to_process:
-        try:
-            df = pd.read_csv(uploaded_file)
-        except Exception as e:
-            skipped_files.append(f"{uploaded_file.name}: Could not read CSV — {str(e)}")
-            continue
+        fname = getattr(uploaded_file, "name", str(uploaded_file))
 
-        missing_cols = [c for c in REQUIRED_CSV_COLUMNS if c not in df.columns]
-        if missing_cols:
+        parsed = parse_skilldrift_report_csv(uploaded_file)
+
+        if parsed is None:
             skipped_files.append(
-                f"{uploaded_file.name}: Missing columns — {', '.join(missing_cols)}"
+                f"{fname}: Could not extract student_name / semester / verified_skills. "
+                f"Make sure this is a SkillDrift report CSV downloaded from the Final Report page."
             )
             continue
 
-        if df.empty:
-            skipped_files.append(f"{uploaded_file.name}: File is empty.")
+        student_name    = parsed["student_name"]
+        semester        = parsed["semester"]
+        verified_str    = parsed["verified_skills"]
+        verified_skills = parse_skills_string(verified_str)
+
+        if not verified_skills:
+            skipped_files.append(f"{fname}: verified_skills field is empty or unreadable.")
             continue
+
+        if student_name.lower() in seen_names:
+            duplicate_count += 1
+            continue
+        seen_names.add(student_name.lower())
 
         valid_count += 1
 
-        for _, row in df.iterrows():
-            student_name = str(row.get("student_name", "")).strip()
+        analysis = compute_full_student_analysis(student_name, semester, verified_skills)
+        all_student_analyses.append(analysis)
 
-            if student_name.lower() in seen_names:
-                duplicate_count += 1
-                continue
-
-            seen_names.add(student_name.lower())
-
-            try:
-                semester = int(row.get("semester", 4))
-                if semester < 1 or semester > 8:
-                    semester = 4
-            except (ValueError, TypeError):
-                semester = 4
-
-            verified_skills = parse_skills_string(str(row.get("verified_skills", "")))
-
-            if not verified_skills:
-                continue
-
-            drift_score, drift_label, track_counts = calculate_drift_score(verified_skills)
-            entropy_score, entropy_label = calculate_entropy(track_counts)
-            career_matches = calculate_career_match(verified_skills)
-            best_match = career_matches[0] if career_matches else {}
-            best_track = best_match.get("track", "Unknown")
-            match_pct = best_match.get("match_pct", 0.0)
-            readiness_score = calculate_readiness_score(verified_skills, best_track)
-            urgency = get_urgency_level(semester)
-            focus_debt = calculate_focus_debt(verified_skills, best_track)
-            next_skill_info = get_next_skill(best_match.get("missing_skills", []), best_track)
-
-            all_rows.append({
-                "student_name":      student_name,
-                "semester":          semester,
-                "verified_skills":   str(row.get("verified_skills", "")),
-                "skill_count":       len(verified_skills),
-                "drift_score":       drift_score,
-                "drift_label":       drift_label,
-                "entropy_score":     entropy_score,
-                "best_track":        best_track,
-                "match_pct":         match_pct,
-                "readiness_score":   readiness_score,
-                "urgency_level":     urgency["urgency_level"],
-                "focus_debt_hours":  focus_debt["focus_debt_hours"],
-                "next_skill":        next_skill_info.get("skill", ""),
-            })
+        all_rows.append({
+            "student_name":     student_name,
+            "semester":         semester,
+            "verified_skills":  verified_str,
+            "skill_count":      analysis["skill_count"],
+            "drift_score":      analysis["drift_score"],
+            "drift_label":      analysis["drift_label"],
+            "entropy_score":    analysis["entropy_score"],
+            "best_track":       analysis["best_track"],
+            "match_pct":        analysis["match_pct"],
+            "readiness_score":  analysis["readiness_score"],
+            "urgency_level":    analysis["urgency_level"],
+            "focus_debt_hours": analysis["focus_debt_hours"],
+            "next_skill":       analysis["next_skill"],
+        })
 
     merged_df = pd.DataFrame(all_rows)
-
     summary = {}
+
     if not merged_df.empty:
         summary["total_students"]      = len(merged_df)
         summary["avg_drift_score"]     = round(merged_df["drift_score"].mean(), 1)
@@ -706,38 +668,27 @@ def validate_and_process_batch(uploaded_files: list) -> dict:
         summary["green_count"]         = int((merged_df["urgency_level"] == "Green").sum())
 
         all_missing = []
-        for _, student_row in merged_df.iterrows():
-            v_skills = parse_skills_string(student_row["verified_skills"])
-            matches = calculate_career_match(v_skills)
-            if matches:
-                best = matches[0]
-                for ms in best.get("missing_skills", [])[:5]:
+        for analysis in all_student_analyses:
+            if analysis["career_matches"]:
+                for ms in analysis["career_matches"][0].get("missing_skills", [])[:5]:
                     all_missing.append(ms["skill"])
 
-        if all_missing:
-            from collections import Counter
-            skill_counter = Counter(all_missing)
-            summary["top_missing_skills"] = skill_counter.most_common(5)
-        else:
-            summary["top_missing_skills"] = []
-
-        track_dist = merged_df["best_track"].value_counts().to_dict()
-        summary["track_distribution"] = track_dist
+        summary["top_missing_skills"] = Counter(all_missing).most_common(5) if all_missing else []
+        summary["track_distribution"] = merged_df["best_track"].value_counts().to_dict()
 
     return {
-        "merged_df":       merged_df,
-        "valid_count":     valid_count,
-        "skipped_files":   skipped_files,
-        "duplicate_count": duplicate_count,
-        "summary":         summary,
+        "merged_df":              merged_df,
+        "all_student_analyses":   all_student_analyses,   # NEW: list of full analysis dicts
+        "valid_count":            valid_count,
+        "skipped_files":          skipped_files,
+        "duplicate_count":        duplicate_count,
+        "summary":                summary,
     }
 
 
 # =============================================================
-# SECTION 13 — FACULTY AUTHENTICATION
+# SECTION 15 — FACULTY AUTHENTICATION
 # =============================================================
-
-import hashlib
 
 def verify_faculty_login(email: str, password: str) -> tuple:
     try:
@@ -747,7 +698,6 @@ def verify_faculty_login(email: str, password: str) -> tuple:
 
     email_clean = email.strip().lower()
     hashed_input = hashlib.sha256(password.encode()).hexdigest()
-
     match = credentials_df[credentials_df["email"] == email_clean]
 
     if match.empty:
@@ -763,11 +713,8 @@ def verify_faculty_login(email: str, password: str) -> tuple:
 
 
 # =============================================================
-# SECTION 14 — REPORT CSV GENERATION
+# SECTION 16 — REPORT CSV GENERATION
 # =============================================================
-
-import csv
-import io
 
 def generate_student_report_csv(session_data: dict) -> str:
     output = io.StringIO()
@@ -776,38 +723,34 @@ def generate_student_report_csv(session_data: dict) -> str:
     writer.writerow(["SkillDrift Report", "Generated by SkillDrift Platform"])
     writer.writerow(["Generated On", datetime.now().strftime("%Y-%m-%d %H:%M")])
     writer.writerow([])
-
     writer.writerow(["STUDENT INFORMATION"])
-    writer.writerow(["student_name",    session_data.get("student_name", "")])
-    writer.writerow(["semester",        session_data.get("semester", "")])
+    writer.writerow(["student_name", session_data.get("student_name", "")])
+    writer.writerow(["semester",     session_data.get("semester", "")])
     writer.writerow([])
-
     writer.writerow(["SKILL ANALYSIS"])
-    writer.writerow(["drift_score",     session_data.get("drift_score", "")])
-    writer.writerow(["drift_label",     session_data.get("drift_label", "")])
-    writer.writerow(["entropy_score",   session_data.get("entropy_score", "")])
-    writer.writerow(["entropy_label",   session_data.get("entropy_label", "")])
+    writer.writerow(["drift_score",   session_data.get("drift_score", "")])
+    writer.writerow(["drift_label",   session_data.get("drift_label", "")])
+    writer.writerow(["entropy_score", session_data.get("entropy_score", "")])
+    writer.writerow(["entropy_label", session_data.get("entropy_label", "")])
     writer.writerow([])
-
     writer.writerow(["CAREER MATCH"])
     writer.writerow(["best_track",      session_data.get("best_track", "")])
     writer.writerow(["match_pct",       session_data.get("match_pct", "")])
     writer.writerow(["readiness_score", session_data.get("readiness_score", "")])
     writer.writerow([])
-
     writer.writerow(["ACTION PLAN"])
     writer.writerow(["next_skill",       session_data.get("next_skill", "")])
     writer.writerow(["urgency_level",    session_data.get("urgency_level", "")])
     writer.writerow(["focus_debt_hours", session_data.get("focus_debt_hours", "")])
     writer.writerow([])
-
     writer.writerow(["VERIFIED SKILLS"])
     writer.writerow(["skill", "verified_level"])
+
     verified_skills = session_data.get("verified_skills", {})
     for skill, level in verified_skills.items():
         writer.writerow([skill, level])
-    writer.writerow([])
 
+    writer.writerow([])
     skills_str = ",".join([f"{s}:{l}" for s, l in verified_skills.items()])
     writer.writerow(["verified_skills", skills_str])
 
