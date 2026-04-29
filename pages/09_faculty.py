@@ -5,7 +5,6 @@
 #   • Student dashboard stored in session, viewed in 09b_student_view.py
 
 import streamlit as st
-from session_store import init_session
 import plotly.graph_objects as go
 import pandas as pd
 import seaborn as sns
@@ -29,8 +28,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-
-init_session()
 
 st.markdown("""
 <style>
@@ -272,7 +269,7 @@ st.markdown(
 )
 
 process_btn = st.button(
-    f"Process {len(all_csv_files)} File(s) and Generate Batch Analysis",
+    f"⚡ Process {len(all_csv_files)} File(s) and Generate Batch Analysis",
     type="primary",
     use_container_width=True,
 )
@@ -281,306 +278,17 @@ if process_btn:
     with st.spinner("Validating files, removing duplicates, recalculating all scores..."):
         results = validate_and_process_batch(all_csv_files)
         st.session_state["faculty_batch_results"] = results
+    # Auto-redirect to the combined results + placement dashboard
+    st.switch_page("pages/09c_batch_results.py")
 
+# If a previous batch exists, show a button to go back to it
 results = st.session_state.get("faculty_batch_results")
+if results and results.get("all_student_analyses"):
+    total_prev = results.get("summary", {}).get("total_students", 0)
+    st.info(f"📊 Previous batch loaded: **{total_prev} students** already processed.")
+    if st.button("View Previous Batch Results →", use_container_width=True):
+        st.switch_page("pages/09c_batch_results.py")
+    st.stop()
+
 if not results:
     st.stop()
-
-merged_df             = results.get("merged_df", pd.DataFrame())
-all_student_analyses  = results.get("all_student_analyses", [])
-valid_count           = results.get("valid_count", 0)
-skipped_files         = results.get("skipped_files", [])
-duplicate_count       = results.get("duplicate_count", 0)
-summary               = results.get("summary", {})
-
-# ─────────────────────────────────────────────────────────────────────────────
-# VALIDATION SUMMARY
-# ─────────────────────────────────────────────────────────────────────────────
-
-st.markdown("---")
-st.subheader("Upload Validation Summary")
-
-col_v1, col_v2, col_v3, col_v4 = st.columns(4)
-with col_v1: st.metric("Files Uploaded",     len(all_csv_files))
-with col_v2: st.metric("Files Valid",        valid_count)
-with col_v3: st.metric("Files Skipped",      len(all_csv_files) - valid_count)
-with col_v4: st.metric("Duplicates Removed", duplicate_count)
-
-if skipped_files:
-    with st.expander(f"{len(skipped_files)} issue(s) during validation"):
-        for msg in skipped_files:
-            st.warning(msg)
-
-if merged_df.empty:
-    st.error("No valid student data could be processed. Check that files follow the expected format.")
-    st.stop()
-
-total_students = summary.get("total_students", len(merged_df))
-st.success(f"Successfully processed **{total_students} students** from {valid_count} valid file(s).")
-st.markdown("---")
-
-# ─────────────────────────────────────────────────────────────────────────────
-# BATCH SUMMARY METRICS
-# ─────────────────────────────────────────────────────────────────────────────
-
-st.subheader("Batch Summary Statistics")
-
-avg_drift     = summary.get("avg_drift_score", 0)
-avg_readiness = summary.get("avg_readiness_score", 0)
-avg_entropy   = summary.get("avg_entropy_score", 0)
-red_count     = summary.get("red_count", 0)
-yellow_count  = summary.get("yellow_count", 0)
-green_count   = summary.get("green_count", 0)
-
-col_m1, col_m2, col_m3, col_m4, col_m5, col_m6 = st.columns(6)
-with col_m1: st.metric("Avg Drift Score",  avg_drift)
-with col_m2: st.metric("Avg Readiness",    f"{avg_readiness}%")
-with col_m3: st.metric("Avg Entropy",      f"{avg_entropy} bits")
-with col_m4: st.metric("High Urgency",     red_count)
-with col_m5: st.metric("Medium Urgency",   yellow_count)
-with col_m6: st.metric("Low Urgency",      green_count)
-
-col_pie, col_track = st.columns(2, gap="medium")
-
-with col_pie:
-    st.markdown("#### Urgency Level Distribution")
-    fig_pie = go.Figure(go.Pie(
-        labels=["High (Red)", "Medium (Yellow)", "Low (Green)"],
-        values=[red_count, yellow_count, green_count],
-        marker_colors=["#FF3B30", "#FF9500", "#34C759"],
-        hole=0.45,
-        textfont=dict(color="#1D1D1F"),
-    ))
-    fig_pie.update_layout(
-        paper_bgcolor="#FFFFFF", font=dict(color="#1D1D1F"),
-        legend=dict(bgcolor="#FFFFFF", bordercolor="#D2D2D7", borderwidth=1),
-        margin=dict(t=20, b=20, l=20, r=20), height=260,
-    )
-    st.plotly_chart(fig_pie, use_container_width=True)
-
-with col_track:
-    st.markdown("#### Best Track Distribution")
-    track_dist = summary.get("track_distribution", {})
-    if track_dist:
-        fig_track_dist = go.Figure(go.Bar(
-            x=list(track_dist.values()), y=list(track_dist.keys()),
-            orientation="h", marker_color="#6C63FF",
-            text=list(track_dist.values()), textposition="outside",
-            textfont=dict(color="#1D1D1F"),
-        ))
-        fig_track_dist.update_layout(
-            paper_bgcolor="#FFFFFF", plot_bgcolor="#F5F5F7",
-            font=dict(color="#1D1D1F"),
-            xaxis=dict(gridcolor="#D2D2D7", color="#1D1D1F"),
-            yaxis=dict(gridcolor="#D2D2D7", color="#1D1D1F"),
-            margin=dict(t=20, b=20, l=10, r=40), height=260,
-        )
-        st.plotly_chart(fig_track_dist, use_container_width=True)
-
-st.markdown("---")
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TOP MISSING SKILLS
-# ─────────────────────────────────────────────────────────────────────────────
-
-st.subheader("Top 5 Skills Most Commonly Missing")
-
-top_missing = summary.get("top_missing_skills", [])
-if top_missing:
-    for rank, (skill, count) in enumerate(top_missing, start=1):
-        pct_missing = round((count / total_students) * 100, 1)
-        bar_color = "#FF3B30" if rank == 1 else "#FF9500" if rank <= 3 else "#6C63FF"
-        st.markdown(f"""
-        <div style="background:#FFFFFF; border:1px solid #D2D2D7;
-                    border-left:4px solid {bar_color};
-                    border-radius:10px; padding:0.75rem 1rem; margin:0.3rem 0;">
-            <span style="color:{bar_color}; font-weight:700;">#{rank}</span>
-            <span style="color:#1D1D1F; font-weight:600; margin-left:0.75rem;">{skill}</span>
-            <span style="color:#86868B; font-size:0.9rem; margin-left:0.75rem;">
-                — missing in {count} students ({pct_missing}% of batch)
-            </span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    top_skill_name = top_missing[0][0]
-    top_skill_pct  = round((top_missing[0][1] / total_students) * 100, 1)
-    st.markdown(f"""
-    <div style="background:#F0EFFF; border:1px solid #6C63FF;
-                border-radius:10px; padding:1rem; margin-top:1rem;">
-        <strong style="color:#6C63FF;">Faculty Recommendation:</strong>
-        <span style="color:#1D1D1F;">
-            {top_skill_pct}% of students are missing <strong>{top_skill_name}</strong>.
-            A focused workshop is strongly recommended before placement season.
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("---")
-
-# ─────────────────────────────────────────────────────────────────────────────
-# HEATMAP
-# ─────────────────────────────────────────────────────────────────────────────
-
-st.subheader("Batch Skill Heatmap")
-st.markdown("Green = verified at a good level · Yellow = Beginner · Red = missing")
-
-all_skills_set = set()
-for analysis in all_student_analyses:
-    all_skills_set.update(analysis["verified_skills"].keys())
-all_skills_list = sorted(list(all_skills_set))
-
-heatmap_data   = []
-student_labels = []
-
-for analysis in all_student_analyses:
-    student_labels.append(analysis["student_name"][:20])
-    row_vals = []
-    for skill in all_skills_list:
-        level = analysis["verified_skills"].get(skill, None)
-        if level in ("Advanced", "Intermediate"):
-            row_vals.append(2)
-        elif level == "Beginner":
-            row_vals.append(1)
-        else:
-            row_vals.append(0)
-    heatmap_data.append(row_vals)
-
-heatmap_matrix = pd.DataFrame(heatmap_data, index=student_labels, columns=all_skills_list)
-
-if not heatmap_matrix.empty:
-    n_students = len(heatmap_matrix)
-    n_skills   = len(all_skills_list)
-    fig_height = max(5, min(n_students * 0.4, 20))
-    fig_width  = max(10, min(n_skills * 0.35, 28))
-
-    fig_heat, ax = plt.subplots(figsize=(fig_width, fig_height))
-    fig_heat.patch.set_facecolor("#FFFFFF")
-    ax.set_facecolor("#FFFFFF")
-
-    cmap   = mcolors.ListedColormap(["#FF3B30", "#FF9500", "#34C759"])
-    bounds = [-0.5, 0.5, 1.5, 2.5]
-    norm   = mcolors.BoundaryNorm(bounds, cmap.N)
-
-    sns.heatmap(
-        heatmap_matrix, ax=ax, cmap=cmap, norm=norm,
-        linewidths=0.3, linecolor="#F5F5F7", cbar=True,
-        cbar_kws={"ticks": [0, 1, 2], "label": "Skill Level"},
-    )
-    cbar = ax.collections[0].colorbar
-    cbar.set_ticklabels(["Missing", "Beginner", "Intermediate/Advanced"])
-    cbar.ax.yaxis.label.set_color("#1D1D1F")
-    cbar.ax.tick_params(colors="#1D1D1F")
-    ax.set_xlabel("Skills", color="#1D1D1F", fontsize=9)
-    ax.set_ylabel("Students", color="#1D1D1F", fontsize=9)
-    ax.tick_params(colors="#1D1D1F", labelsize=7)
-    ax.set_title(
-        f"Batch Skill Heatmap — {n_students} Students × {n_skills} Skills",
-        color="#1D1D1F", fontsize=11, pad=10,
-    )
-    plt.xticks(rotation=45, ha="right", fontsize=7)
-    plt.yticks(fontsize=7)
-    plt.tight_layout()
-    st.pyplot(fig_heat, use_container_width=True)
-    plt.close(fig_heat)
-
-st.markdown("---")
-
-# ─────────────────────────────────────────────────────────────────────────────
-# PER-STUDENT TABLE WITH "VIEW DASHBOARD" BUTTON
-# This is the new section. Each row shows the student summary and a button
-# that stores that student's full analysis in session_state and navigates
-# to the student view page.
-# ─────────────────────────────────────────────────────────────────────────────
-
-st.subheader("📋 Full Student Analysis Table")
-st.markdown(
-    "Click **View Dashboard** on any student to see their complete 8-window analysis — "
-    "built from the data they submitted."
-)
-
-URGENCY_COLORS = {"Red": "#FF3B30", "Yellow": "#FF9500", "Green": "#34C759"}
-
-# Store the lookup dict by student name for navigation
-student_lookup = {a["student_name"]: a for a in all_student_analyses}
-st.session_state["faculty_student_lookup"] = student_lookup
-
-for analysis in all_student_analyses:
-    name         = analysis["student_name"]
-    sem          = analysis["semester"]
-    drift        = analysis["drift_score"]
-    drift_lbl    = analysis["drift_label"]
-    track        = analysis["best_track"]
-    match        = analysis["match_pct"]
-    readiness    = analysis["readiness_score"]
-    urgency      = analysis["urgency_level"]
-    urgency_col  = URGENCY_COLORS.get(urgency, "#6C63FF")
-    next_sk      = analysis["next_skill"]
-
-    col_info, col_btn = st.columns([8, 2])
-
-    with col_info:
-        st.markdown(f"""
-        <div style="background:#FFFFFF; border:1px solid #D2D2D7; border-radius:10px;
-                    padding:0.75rem 1rem; display:flex; align-items:center;
-                    flex-wrap:wrap; gap:1rem;">
-            <div style="min-width:140px;">
-                <div style="font-weight:700; color:#1D1D1F; font-size:0.95rem;">{name}</div>
-                <div style="color:#86868B; font-size:0.8rem;">Semester {sem}</div>
-            </div>
-            <div style="min-width:110px;">
-                <div style="font-size:0.75rem; color:#86868B;">Drift Score</div>
-                <div style="font-weight:600; color:#1D1D1F;">{drift} — {drift_lbl}</div>
-            </div>
-            <div style="min-width:110px;">
-                <div style="font-size:0.75rem; color:#86868B;">Best Track</div>
-                <div style="font-weight:600; color:#6C63FF;">{track} ({match}%)</div>
-            </div>
-            <div style="min-width:90px;">
-                <div style="font-size:0.75rem; color:#86868B;">Readiness</div>
-                <div style="font-weight:600; color:#1D1D1F;">{readiness}%</div>
-            </div>
-            <div>
-                <span style="background:{urgency_col}22; color:{urgency_col};
-                             border-radius:6px; padding:2px 10px; font-size:0.78rem;
-                             font-weight:700;">{urgency} Urgency</span>
-            </div>
-            <div style="min-width:120px;">
-                <div style="font-size:0.75rem; color:#86868B;">Next Skill</div>
-                <div style="font-weight:600; color:#FF9500;">{next_sk or "—"}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col_btn:
-        # The key must be unique per student
-        if st.button("View Dashboard", key=f"view_dash_{name}", use_container_width=True):
-            # Store the selected student analysis for the view page
-            st.session_state["faculty_viewing_student"] = name
-            st.switch_page("pages/09b_student_view.py")
-
-st.markdown("---")
-
-# ─────────────────────────────────────────────────────────────────────────────
-# DOWNLOAD FULL BATCH REPORT
-# ─────────────────────────────────────────────────────────────────────────────
-
-st.subheader("Download Full Batch Report")
-
-csv_buffer = io.StringIO()
-merged_df.to_csv(csv_buffer, index=False)
-csv_bytes = csv_buffer.getvalue().encode("utf-8")
-today_str = datetime.now().strftime("%Y_%m_%d")
-filename  = f"SkillDrift_Batch_Report_{today_str}.csv"
-
-st.download_button(
-    label="⬇️ Download Full Batch Report as CSV",
-    data=csv_bytes,
-    file_name=filename,
-    mime="text/csv",
-    use_container_width=True,
-    type="primary",
-)
-st.caption(
-    "This CSV contains all student names, verified skill lists, "
-    "and freshly recalculated scores. Share it with your placement cell."
-)
