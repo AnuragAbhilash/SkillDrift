@@ -41,15 +41,16 @@ def load_skills_mapping() -> pd.DataFrame:
 
     TRACK_NAME_MAP = {
         "data_analyst":   "Data Analyst",
-        "data_scientist": "Data Scientist",
-        "data_engineer":  "Data Engineer",
         "ml_engineer":    "ML Engineer",
         "web_developer":  "Web Developer",
         "devops_cloud":   "DevOps Cloud",
         "cybersecurity":  "Cybersecurity",
         "software_dev":   "Software Dev",
+        "qa_tester":      "QA Tester",
+        "full_stack_dev": "Full Stack Dev",
     }
     long_df["track"] = long_df["track_raw"].map(TRACK_NAME_MAP)
+    long_df = long_df[long_df["track"].notna()].copy()
     long_df = long_df[["skill", "track"]].reset_index(drop=True)
     return long_df
 
@@ -76,24 +77,24 @@ def load_faculty_credentials() -> pd.DataFrame:
 
 CAREER_TRACKS = [
     "Data Analyst",
-    "Data Scientist",
-    "Data Engineer",
     "ML Engineer",
     "Web Developer",
     "DevOps Cloud",
     "Cybersecurity",
     "Software Dev",
+    "QA Tester",
+    "Full Stack Dev",
 ]
 
 TRACK_TO_ROLE = {
     "Data Analyst":   "Data Analyst",
-    "Data Scientist": "Data Scientist",
-    "Data Engineer":  "Data Engineer",
     "ML Engineer":    "ML Engineer",
     "Web Developer":  "Web Developer",
     "DevOps Cloud":   "DevOps Cloud",
     "Cybersecurity":  "Cybersecurity",
     "Software Dev":   "Software Dev",
+    "QA Tester":      "QA Tester",
+    "Full Stack Dev": "Full Stack Dev",
 }
 
 
@@ -103,8 +104,8 @@ TRACK_TO_ROLE = {
 
 LEVEL_WEIGHTS = {
     "Advanced":     1.0,
-    "Intermediate": 1.0,
-    "Beginner":     0.5,
+    "Intermediate": 0.75,
+    "Beginner":     0.4,
     "Not Verified": 0.0,
 }
 
@@ -113,29 +114,50 @@ LEVEL_WEIGHTS = {
 # SECTION 4 — DRIFT SCORE
 # =============================================================
 
-def calculate_drift_score(verified_skills: dict) -> tuple:
+def calculate_drift_score(verified_skills: dict, quiz_results: list = None) -> tuple:
+    """
+    verified_skills: dict of {skill: verified_level}
+    quiz_results:    list of result dicts from gemini_quiz.score_all()
+                     Used to apply half-weight (0.5) to Borderline skills
+                     so a student who barely passed gets a more honest drift score.
+                     Confirmed = 1.0 weight, Borderline = 0.5 weight.
+    """
     if len(verified_skills) < 3:
         return 0.0, "Insufficient Skills", {t: 0 for t in CAREER_TRACKS}
 
+    # Build weight map: Borderline skills count as 0.5, Confirmed as 1.0
+    weight_map = {}
+    if quiz_results:
+        for r in quiz_results:
+            skill = r.get("skill", "")
+            status = r.get("status", "Confirmed")
+            weight_map[skill.lower()] = 0.5 if status == "Borderline" else 1.0
+    # Default weight 1.0 for any skill not in quiz_results
+    for skill in verified_skills.keys():
+        if skill.lower() not in weight_map:
+            weight_map[skill.lower()] = 1.0
+
     skills_map_df = load_skills_mapping()
-    track_counts = {track: 0 for track in CAREER_TRACKS}
+    track_counts = {track: 0.0 for track in CAREER_TRACKS}
+    total_weight = 0.0
 
     for skill in verified_skills.keys():
+        weight = weight_map.get(skill.lower(), 1.0)
+        total_weight += weight
         matched_tracks = skills_map_df[
             skills_map_df["skill"].str.lower() == skill.lower()
         ]["track"].tolist()
         for track in matched_tracks:
             for career_track in CAREER_TRACKS:
                 if track.lower().replace(" ", "") == career_track.lower().replace(" ", ""):
-                    track_counts[career_track] += 1
+                    track_counts[career_track] += weight
                     break
 
     counts_array = np.array(list(track_counts.values()), dtype=float)
     actual_std = float(np.std(counts_array))
-    n_skills = len(verified_skills)
     n_tracks = len(CAREER_TRACKS)
     max_counts = np.zeros(n_tracks)
-    max_counts[0] = n_skills
+    max_counts[0] = total_weight  # use weighted total, not raw skill count
     max_std = float(np.std(max_counts))
     min_std = 0.0
 
@@ -158,32 +180,50 @@ def calculate_drift_score(verified_skills: dict) -> tuple:
     else:
         drift_label = "Extremely Scattered"
 
-    return drift_score, drift_label, track_counts
+    # Return integer track counts (for display) but use float internally
+    track_counts_int = {t: round(v, 2) for t, v in track_counts.items()}
+    return drift_score, drift_label, track_counts_int
 
 
 # =============================================================
 # SECTION 5 — ENTROPY SCORE
 # =============================================================
 
-def calculate_entropy(track_counts: dict) -> tuple:
-    counts = np.array(list(track_counts.values()), dtype=float)
-    total = counts.sum()
-    if total == 0:
-        return 0.0, "No Skills"
+def calculate_entropy(track_counts: dict, drift_score: float = None) -> tuple:
+    """
+    Entropy derived from the same concentration score used by drift.
+    Drift 0  (focused)   -> Entropy 0.0 bits
+    Drift 100 (scattered) -> Entropy 3.0 bits
+    Always consistent — eliminates contradictory readings.
+    """
+    if drift_score is None:
+        counts = np.array(list(track_counts.values()), dtype=float)
+        total = counts.sum()
+        if total == 0:
+            return 0.0, "No Skills"
+        n_tracks = len(counts)
+        actual_std = float(np.std(counts))
+        max_counts = np.zeros(n_tracks)
+        max_counts[0] = total
+        max_std = float(np.std(max_counts))
+        if max_std == 0:
+            concentration = 0.0
+        else:
+            concentration = float(np.clip(100.0 * actual_std / max_std, 0.0, 100.0))
+        drift_score = 100.0 - concentration
 
-    probs = counts / total
-    entropy_score = float(scipy_entropy(probs, base=2))
+    entropy_score = round((drift_score / 100.0) * 3.0, 2)
 
-    if entropy_score < 1.2:
-        entropy_label = "Highly Ordered — Strong Focus"
-    elif entropy_score < 2.0:
+    if entropy_score < 0.9:
+        entropy_label = "Highly Ordered"
+    elif entropy_score < 1.8:
         entropy_label = "Moderately Ordered"
-    elif entropy_score < 2.8:
-        entropy_label = "Disordered — Showing Drift"
+    elif entropy_score < 2.4:
+        entropy_label = "Disordered"
     else:
-        entropy_label = "Highly Disordered — Strong Drift"
+        entropy_label = "Highly Disordered"
 
-    return round(entropy_score, 2), entropy_label
+    return entropy_score, entropy_label
 
 
 # =============================================================
@@ -308,18 +348,16 @@ def get_urgency_level(semester: int) -> dict:
     today = datetime.now()
     current_year = today.year
 
-    if today.month < 7:
-        sem7_start = datetime(current_year, 7, 1)
-    else:
-        sem7_start = datetime(current_year + 1, 7, 1)
-
     if semester >= 7:
-        delta_days = (today - sem7_start).days
-        days_remaining = 0 if delta_days >= 0 else abs(delta_days)
+        days_remaining = 0
+        weeks_remaining = 0
     else:
+        if today.month < 7:
+            sem7_start = datetime(current_year, 7, 1)
+        else:
+            sem7_start = datetime(current_year + 1, 7, 1)
         days_remaining = max(0, (sem7_start - today).days)
-
-    weeks_remaining = days_remaining // 7
+        weeks_remaining = days_remaining // 7
 
     if semester <= 2:
         urgency_level = "Green"
@@ -398,31 +436,33 @@ def calculate_focus_debt(verified_skills: dict, best_track: str) -> dict:
 # =============================================================
 
 DRIFT_TO_PLACEMENT_RATE = [
-    ( 0,  20, 78),
-    (20,  40, 62),
-    (40,  60, 44),
-    (60,  80, 29),
-    (80, 100, 18),
+    ( 0,  20, 78, "65–85%"),
+    (20,  40, 62, "50–70%"),
+    (40,  60, 44, "35–55%"),
+    (60,  80, 29, "20–38%"),
+    (80, 100, 18, "10–25%"),
 ]
 
 FOCUSED_PLACEMENT_RATES = {
-    "Data Analyst": 77, "Data Scientist": 71, "Data Engineer": 68,
-    "ML Engineer": 65, "Web Developer": 74, "DevOps Cloud": 72,
-    "Cybersecurity": 69, "Software Dev": 76,
+    "Data Analyst": 77, "ML Engineer": 65, "Web Developer": 74,
+    "DevOps Cloud": 72, "Cybersecurity": 69, "Software Dev": 76,
+    "QA Tester": 78, "Full Stack Dev": 75,
 }
 
 TRACK_SURVIVAL_RATES = {
-    "Data Analyst": 72, "Data Scientist": 51, "Data Engineer": 58,
-    "ML Engineer": 47, "Web Developer": 75, "DevOps Cloud": 63,
-    "Cybersecurity": 60, "Software Dev": 70,
+    "Data Analyst": 72, "ML Engineer": 47, "Web Developer": 75,
+    "DevOps Cloud": 63, "Cybersecurity": 60, "Software Dev": 70,
+    "QA Tester": 80, "Full Stack Dev": 73,
 }
 
 
 def get_peer_placement_rate(drift_score: float, best_track: str) -> dict:
     student_rate = 18
-    for min_d, max_d, rate in DRIFT_TO_PLACEMENT_RATE:
+    student_range = "10–25%"
+    for min_d, max_d, rate, range_str in DRIFT_TO_PLACEMENT_RATE:
         if min_d <= drift_score <= max_d:
             student_rate = rate
+            student_range = range_str
             break
 
     focused_rate = FOCUSED_PLACEMENT_RATES.get(best_track, 70)
@@ -432,6 +472,7 @@ def get_peer_placement_rate(drift_score: float, best_track: str) -> dict:
     )
     return {
         "student_placement_rate": student_rate,
+        "student_placement_range": student_range,
         "focused_placement_rate": focused_rate,
         "survival_rates": TRACK_SURVIVAL_RATES,
         "disclaimer": disclaimer,
@@ -464,14 +505,14 @@ def parse_skills_string(skills_str: str) -> dict:
 # and return it in a shape that mirrors the student session_state.
 # =============================================================
 
-def compute_full_student_analysis(student_name: str, semester: int, verified_skills: dict) -> dict:
+def compute_full_student_analysis(student_name: str, semester: int, verified_skills: dict, quiz_results: list = None) -> dict:
     """
     Runs all 8 calculations for one student and returns a dict
     that mirrors the keys used in student session_state.
     Safe to call in a loop for batch processing.
     """
-    drift_score, drift_label, track_counts = calculate_drift_score(verified_skills)
-    entropy_score, entropy_label = calculate_entropy(track_counts)
+    drift_score, drift_label, track_counts = calculate_drift_score(verified_skills, quiz_results=quiz_results or [])
+    entropy_score, entropy_label = calculate_entropy(track_counts, drift_score)
     career_matches = calculate_career_match(verified_skills)
     best_match = career_matches[0] if career_matches else {}
     best_track = best_match.get("track", "Unknown")

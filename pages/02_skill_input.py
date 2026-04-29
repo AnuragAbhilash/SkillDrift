@@ -318,7 +318,11 @@ st.markdown(
 )
 
 selected_skills = {}
-tabs = st.tabs(list(ALL_SKILLS.keys()))
+tab_labels = [
+    f"{cat} ({sum(1 for s in skills if st.session_state.get(f'skill_check_{s}'))})"
+    for cat, skills in ALL_SKILLS.items()
+]
+tabs = st.tabs(tab_labels)
 
 for tab, (category, skills) in zip(tabs, ALL_SKILLS.items()):
     with tab:

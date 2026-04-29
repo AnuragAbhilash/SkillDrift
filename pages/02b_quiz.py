@@ -700,6 +700,13 @@ if not st.session_state.get("quiz_started"):
         st.session_state["_js_serial"] = new_serial
         st.session_state["_seen_ts"]   = 0
         st.session_state["_seen_fx"]   = 0
+
+        # Initialise quiz timer: 1 minute per question (3 questions per skill)
+        num_skills    = len(st.session_state.get("selected_skills", []))
+        total_seconds = num_skills * 3 * 60          # e.g. 4 skills → 12 min
+        st.session_state["_quiz_start_time"]     = time.time()
+        st.session_state["_quiz_total_seconds"]  = total_seconds
+        st.session_state["_quiz_auto_submitted"] = False
         save_session()
 
         # Request fullscreen. Counter reset is handled by the new serial.
@@ -1065,7 +1072,74 @@ if HAS_JS_EVAL:
 
 
 # =============================================================
-# 10. IN-TEST HEADER
+# =============================================================
+# 10. TIMER — compute remaining time, auto-submit if expired
+# =============================================================
+
+_quiz_start    = st.session_state.get("_quiz_start_time", time.time())
+_quiz_total    = st.session_state.get("_quiz_total_seconds", len(quiz_data) * 3 * 60)
+_elapsed       = time.time() - _quiz_start
+_remaining     = max(0, _quiz_total - _elapsed)
+_timer_expired = _remaining <= 0
+
+# Format mm:ss for display
+_rem_int  = int(_remaining)
+_tmr_min  = _rem_int // 60
+_tmr_sec  = _rem_int % 60
+_tmr_str  = f"{_tmr_min:02d}:{_tmr_sec:02d}"
+_tmr_color = "#dc2626" if _remaining < 60 else ("#f59e0b" if _remaining < 180 else "#15803d")
+
+# Auto-submit when timer expires (only once)
+if _timer_expired and not st.session_state.get("_quiz_auto_submitted"):
+    st.session_state["_quiz_auto_submitted"] = True
+    # Score with whatever answers were given (unanswered = wrong)
+    verified = score_all(quiz_data)
+    reset_proctor_state()
+    _js("(document.exitFullscreen?document.exitFullscreen():null)", "exit_fs_timer")
+    with st.spinner("Calculating your career profile..."):
+        try:
+            from brain import (
+                calculate_drift_score, calculate_entropy, calculate_career_match,
+                calculate_readiness_score, get_next_skill, get_urgency_level,
+                calculate_focus_debt, get_peer_placement_rate,
+            )
+            drift_score, drift_label, track_counts = calculate_drift_score(verified, quiz_results=st.session_state.get("quiz_results", []))
+            entropy_score, entropy_label           = calculate_entropy(track_counts, drift_score)
+            career_matches = calculate_career_match(verified)
+            best_match     = career_matches[0] if career_matches else {}
+            best_track     = best_match.get("track", "Unknown")
+            match_pct      = best_match.get("match_pct", 0.0)
+            readiness      = calculate_readiness_score(verified, best_track)
+            next_skill     = get_next_skill(best_match.get("missing_skills", []), best_track)
+            urgency        = get_urgency_level(st.session_state.get("semester", 4))
+            debt           = calculate_focus_debt(verified, best_track)
+            peer           = get_peer_placement_rate(drift_score, best_track)
+            st.session_state["drift_score"]     = drift_score
+            st.session_state["drift_label"]     = drift_label
+            st.session_state["track_counts"]    = track_counts
+            st.session_state["entropy_score"]   = entropy_score
+            st.session_state["entropy_label"]   = entropy_label
+            st.session_state["career_matches"]  = career_matches
+            st.session_state["best_track"]      = best_track
+            st.session_state["match_pct"]       = match_pct
+            st.session_state["readiness_score"] = readiness
+            st.session_state["next_skill_info"] = next_skill
+            st.session_state["urgency_info"]    = urgency
+            st.session_state["focus_debt_info"] = debt
+            st.session_state["peer_info"]       = peer
+            st.session_state["quiz_complete"]   = True
+            save_session()
+        except Exception as e:
+            import traceback
+            with open("error_log.txt", "a") as f:
+                f.write(f"\n--- AUTO-SUBMIT ERROR ---\n{traceback.format_exc()}\n")
+            st.error(f"Auto-submit scoring error: {e}")
+            st.stop()
+    st.switch_page("pages/03_drift_score.py")
+
+
+# =============================================================
+# 10b. IN-TEST HEADER
 # =============================================================
 
 total_q   = sum(len(x["questions"]) for x in quiz_data)
@@ -1084,7 +1158,16 @@ st.markdown(
           Questions: {total_q}
         </div>
       </div>
-      <div class="{vio_class}">Violations: {violations} / {MAX_VIOLATIONS}</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <div style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);
+             border-radius:20px;padding:6px 16px;font-size:0.84rem;font-weight:800;
+             white-space:nowrap;color:{_tmr_color if _tmr_color != '#15803d' else '#fff'};
+             {'background:#dc2626;border-color:#dc2626;' if _remaining < 60 else
+              'background:#f59e0b;border-color:#f59e0b;color:#1a1a1a;' if _remaining < 180 else ''}">
+          &#9201; {_tmr_str}
+        </div>
+        <div class="{vio_class}">Violations: {violations} / {MAX_VIOLATIONS}</div>
+      </div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -1268,15 +1351,144 @@ with st.form("skill_quiz_form", clear_on_submit=False):
 # =============================================================
 
 if submitted and quiz_unlocked:
-    save_session()
+    # ── Validation: ensure every question has been answered ──────────
+    unanswered = []
+    for _si, _itm in enumerate(quiz_data):
+        for _qi in range(len(_itm.get("questions", []))):
+            _k = f"q_{_si}_{_qi}"
+            _ans = (
+                st.session_state["_quiz_answers"].get(_k)
+                or st.session_state.get(_k)
+            )
+            if not _ans or str(_ans).startswith("A. (locked)"):
+                unanswered.append(f"{_itm['skill']} Q{_qi + 1}")
+    if unanswered:
+        # Store in session_state so it survives autorefresh reruns
+        st.session_state["_ua_modal_data"] = unanswered
+    # ────────────────────────────────────────────────────────────────
+
+# ── Render the unanswered modal on EVERY rerun while data is set ──
+if st.session_state.get("_ua_modal_data"):
+    _unanswered = st.session_state["_ua_modal_data"]
+    _grouped = {}
+    for _item in _unanswered:
+        _parts = _item.rsplit(" ", 1)
+        _sk, _qn = (_parts[0], _parts[1]) if len(_parts) == 2 else (_item, "")
+        _grouped.setdefault(_sk, []).append(_qn)
+    _grouped_lines = "".join(
+        f"<div class='sd-ua-row'><span class='sd-ua-skill'>{_sk}</span>"
+        f"<span class='sd-ua-qs'>{', '.join(_qs)}</span></div>"
+        for _sk, _qs in _grouped.items()
+    )
+    st.markdown(
+        f"""
+        <style>
+        .sd-ua-overlay {{
+          position:fixed;inset:0;background:rgba(15,23,42,0.60);
+          z-index:200000;display:flex;align-items:center;justify-content:center;
+        }}
+        .sd-ua-card {{
+          background:#fff;border-radius:14px;padding:28px 30px 22px 30px;
+          width:460px;max-width:92vw;text-align:center;
+          border-top:5px solid #f59e0b;
+          box-shadow:0 24px 60px rgba(0,0,0,0.28);
+          font-family:'Inter',-apple-system,sans-serif;
+        }}
+        .sd-ua-label {{
+          display:inline-block;background:#fff7ed;border:1px solid #fde68a;
+          border-radius:20px;padding:3px 14px;
+          font-size:0.72rem;font-weight:800;color:#92400e;
+          letter-spacing:0.06em;text-transform:uppercase;margin-bottom:14px;
+        }}
+        .sd-ua-title {{
+          font-family:'Manrope',sans-serif;font-size:1.15rem;
+          font-weight:800;color:#171c1f;margin-bottom:8px;
+        }}
+        .sd-ua-body {{
+          font-size:0.88rem;color:#515f74;line-height:1.6;margin-bottom:18px;
+        }}
+        .sd-ua-body strong {{color:#171c1f;}}
+        .sd-ua-list {{
+          background:#f6fafe;border:1px solid #e2e8f0;
+          border-left:3px solid #f59e0b;
+          border-radius:8px;padding:12px 16px;margin-bottom:22px;text-align:left;
+        }}
+        .sd-ua-row {{
+          display:flex;justify-content:space-between;align-items:center;
+          padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:0.84rem;
+        }}
+        .sd-ua-row:last-child {{border-bottom:none;}}
+        .sd-ua-skill {{font-weight:700;color:#171c1f;}}
+        .sd-ua-qs {{
+          font-weight:700;color:#92400e;
+          background:#fff7ed;border:1px solid #fde68a;
+          border-radius:5px;padding:1px 8px;font-size:0.78rem;
+        }}
+        #sd-ua-dismiss-wrap button {{
+          background:#002c98 !important;color:#fff !important;
+          border:none !important;border-radius:8px !important;
+          padding:10px 28px !important;font-size:0.92rem !important;
+          font-weight:700 !important;cursor:pointer !important;
+          width:100% !important;height:44px !important;min-height:44px !important;
+          font-family:'Inter',sans-serif !important;letter-spacing:0.01em !important;
+        }}
+        #sd-ua-dismiss-wrap button:hover {{background:#0038bf !important;}}
+        #sd-ua-dismiss-wrap {{width:100%;}}
+        </style>
+        <div class="sd-ua-overlay">
+          <div class="sd-ua-card">
+            <div class="sd-ua-label">Incomplete Submission</div>
+            <div class="sd-ua-title">Answer All Questions Before Submitting</div>
+            <div class="sd-ua-body">
+              <strong>{len(_unanswered)} question{'s' if len(_unanswered) != 1 else ''}</strong>
+              still unanswered. Scroll up and complete them before continuing.
+            </div>
+            <div class="sd-ua-list">{_grouped_lines}</div>
+            <div id="sd-ua-dismiss-wrap"></div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    # Real Streamlit button — clicking it clears session state and reruns.
+    # JS moves it inside the modal card so it looks native.
+    st.markdown('<div id="sd-ua-btn-anchor"></div>', unsafe_allow_html=True)
+    if st.button("Go Back and Answer", key="ua_dismiss_btn", type="primary", use_container_width=False):
+        st.session_state.pop("_ua_modal_data", None)
+        st.rerun()
+    components.html(
+        """
+        <script>
+        (function(){
+          var doc=window.parent.document;
+          function move(){
+            var dest=doc.getElementById('sd-ua-dismiss-wrap');
+            var anchor=doc.getElementById('sd-ua-btn-anchor');
+            if(!dest||!anchor) return false;
+            var block=anchor.closest('[data-testid="stVerticalBlock"]')||anchor.parentElement;
+            var btn=block?block.querySelector('button[kind="primary"]'):null;
+            if(!btn) return false;
+            var holder=btn.closest('[data-testid="stButton"]')||btn.closest('.element-container')||btn.parentElement;
+            if(holder&&dest.firstChild!==holder) dest.appendChild(holder);
+            return true;
+          }
+          var n=0; var t=setInterval(function(){ n++; if(move()||n>40) clearInterval(t); },40);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+    st.stop()
+
+if submitted and quiz_unlocked and not st.session_state.get("_ua_modal_data"):
     verified = score_all(quiz_data)
     reset_proctor_state()
     _js("(document.exitFullscreen?document.exitFullscreen():null)", "exit_fs_submit")
 
     with st.spinner("Calculating your score and skill evaluation..."):
         try:
-            drift_score, drift_label, track_counts = calculate_drift_score(verified)
-            entropy_score, entropy_label           = calculate_entropy(track_counts)
+            drift_score, drift_label, track_counts = calculate_drift_score(verified, quiz_results=st.session_state.get("quiz_results", []))
+            entropy_score, entropy_label           = calculate_entropy(track_counts, drift_score)
             career_matches = calculate_career_match(verified)
             best_match     = career_matches[0] if career_matches else {}
             best_track     = best_match.get("track", "Unknown")
@@ -1300,11 +1512,13 @@ if submitted and quiz_unlocked:
             st.session_state["urgency_info"]    = urgency
             st.session_state["focus_debt_info"] = debt
             st.session_state["peer_info"]       = peer
+            st.session_state["quiz_complete"]   = True
+            save_session()
         except Exception as e:
+            import traceback
+            with open("error_log.txt", "a") as f:
+                f.write(f"\n--- SUBMIT ERROR ---\n{traceback.format_exc()}\n")
             st.error(f"Analysis error: {e}")
             st.stop()
-
-    st.session_state["quiz_complete"] = True
-    save_session()
     time.sleep(0.4)
     st.switch_page("pages/03_drift_score.py")

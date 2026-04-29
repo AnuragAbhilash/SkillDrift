@@ -1,200 +1,180 @@
 track,skill,frequency_pct
-Data Analyst,Python,35.0
-Data Analyst,SQL,35.0
-Data Analyst,Power BI,29.3
-Data Analyst,Data Analysis,23.6
-Data Analyst,Data Management,12.9
-Data Analyst,Excel,12.9
-Data Analyst,Data Visualization,10.7
-Data Analyst,Tableau,10.7
-Data Analyst,Google Sheets,10.0
-Data Analyst,NumPy,8.6
-Data Analyst,Risk Management,7.9
-Data Analyst,Data Mining,6.4
-Data Analyst,Machine Learning,6.4
-Data Analyst,Advanced Analytics,6.4
-Data Analyst,Apache Spark,5.7
-Data Analyst,MS Office,5.7
-Data Analyst,Data Quality,5.0
-Data Analyst,Looker,4.3
-Data Analyst,Business Intelligence,3.6
-Data Analyst,SAS,2.9
-Data Analyst,Advanced Excel,2.9
-Data Analyst,Macros,2.9
-Data Analyst,Dbms,2.9
-Data Analyst,Service Excellence,2.9
-Data Analyst,Data Cleansing,2.9
-Data Scientist,Machine Learning,58.9
-Data Scientist,Python,35.5
-Data Scientist,SQL,22.4
-Data Scientist,Deep Learning,15.9
-Data Scientist,Git,14.0
-Data Scientist,NLP,14.0
-Data Scientist,Automation,14.0
-Data Scientist,System Design,13.1
-Data Scientist,Linux,12.1
-Data Scientist,Big Data,11.2
-Data Scientist,Neural Networks,11.2
-Data Scientist,Ai,10.3
-Data Scientist,Predictive Modeling,7.5
-Data Scientist,Statistics,6.5
-Data Scientist,NoSQL,6.5
-Data Scientist,Research,4.7
-Data Scientist,Data Collection,4.7
-Data Scientist,Data Cleansing,3.7
-Data Scientist,Data Visualization,3.7
-Data Scientist,Trend Analysis,3.7
-Data Scientist,Data Mining,3.7
-Data Scientist,Data Science,3.7
-Data Scientist,C++,2.8
-Data Scientist,SAS,2.8
-Data Scientist,Oracle,2.8
-Data Engineer,SQL,45.1
-Data Engineer,MySQL,23.5
-Data Engineer,Machine Learning,21.6
-Data Engineer,Python,14.7
-Data Engineer,Scala,13.7
-Data Engineer,Apache,13.7
-Data Engineer,Linux,13.7
-Data Engineer,AWS,13.7
-Data Engineer,Data Structures,13.7
-Data Engineer,Data Processing,12.7
-Data Engineer,Automation,11.8
-Data Engineer,Data Engineering,11.8
-Data Engineer,Agile,11.8
-Data Engineer,Git,11.8
-Data Engineer,Rdbms,9.8
-Data Engineer,Olap,9.8
-Data Engineer,Technology Management,8.8
-Data Engineer,Hive,4.9
-Data Engineer,GCP,4.9
-Data Engineer,Apache Spark,4.9
-Data Engineer,Data Warehousing,3.9
-Data Engineer,Data Mining,3.9
-Data Engineer,Json,2.9
-Data Engineer,Data Modeling,2.9
-Data Engineer,CI/CD,2.9
-ML Engineer,Python,64.0
-ML Engineer,Machine Learning,50.0
-ML Engineer,NLP,43.0
-ML Engineer,Ai,37.2
-ML Engineer,Computer Vision,24.4
-ML Engineer,Deep Learning,23.3
-ML Engineer,TensorFlow,18.6
-ML Engineer,Llm,12.8
-ML Engineer,SQL,11.6
-ML Engineer,Debugging,11.6
-ML Engineer,Reinforcement Learning,8.1
-ML Engineer,Linux,7.0
-ML Engineer,C++,7.0
-ML Engineer,Data Warehousing,5.8
-ML Engineer,Data Science,5.8
-ML Engineer,Predictive Analytics,4.7
-ML Engineer,Scikit-learn,3.5
-ML Engineer,Data Processing,3.5
-ML Engineer,Data Structures,3.5
-ML Engineer,Programming,3.5
-ML Engineer,Git,3.5
-ML Engineer,Data Visualization,2.3
-ML Engineer,Rdbms,2.3
-ML Engineer,NumPy,2.3
-ML Engineer,Data Analysis,1.2
-Web Developer,CSS,51.1
-Web Developer,PHP,48.9
-Web Developer,Bootstrap,38.0
-Web Developer,JavaScript,33.7
-Web Developer,AJAX,30.4
-Web Developer,jQuery,18.5
-Web Developer,HTML,17.4
-Web Developer,MySQL,15.2
-Web Developer,SQL,13.0
-Web Developer,Wordpress,13.0
-Web Developer,Git,13.0
-Web Developer,C#,12.0
-Web Developer,Ui Development,10.9
-Web Developer,React,10.9
-Web Developer,Vue.js,9.8
-Web Developer,Docker,8.7
-Web Developer,Seo,7.6
-Web Developer,Digital Marketing,7.6
-Web Developer,Web Development,7.6
-Web Developer,Wordpress Cms,5.4
-Web Developer,Spring Boot,3.3
-Web Developer,Core Php,3.3
-Web Developer,Cms,2.2
-Web Developer,OOP,1.1
-Web Developer,Web Technologies,1.1
-DevOps Cloud,Kubernetes,61.6
-DevOps Cloud,Docker,37.2
-DevOps Cloud,Linux,36.0
-DevOps Cloud,GCP,36.0
-DevOps Cloud,Azure,30.2
-DevOps Cloud,CI/CD,26.7
-DevOps Cloud,Git,23.3
-DevOps Cloud,Automation,17.4
-DevOps Cloud,AWS,14.0
-DevOps Cloud,Terraform,14.0
-DevOps Cloud,Github Actions,10.5
-DevOps Cloud,Jenkins,9.3
-DevOps Cloud,Load Balancing,9.3
-DevOps Cloud,Python,9.3
-DevOps Cloud,Networking,7.0
-DevOps Cloud,Containerization,4.7
-DevOps Cloud,Monitoring,4.7
-DevOps Cloud,SQL,4.7
-DevOps Cloud,Ansible,3.5
-DevOps Cloud,Monitoring Tools,2.3
-DevOps Cloud,Cloud,2.3
-DevOps Cloud,Nginx,2.3
-DevOps Cloud,Gke,2.3
-DevOps Cloud,Devops,1.2
-Cybersecurity,SIEM,52.9
-Cybersecurity,SOC,31.0
-Cybersecurity,Linux,17.2
-Cybersecurity,Risk Management,17.2
-Cybersecurity,MDR,16.1
-Cybersecurity,SIEM Tools,16.1
-Cybersecurity,Compliance,16.1
-Cybersecurity,Threat Analysis,12.6
-Cybersecurity,Threat Detection,12.6
-Cybersecurity,Risk Assessment,12.6
-Cybersecurity,Information Security,11.5
-Cybersecurity,Incident Response,11.5
-Cybersecurity,Root Cause Analysis,10.3
-Cybersecurity,Iso,9.2
-Cybersecurity,Networking,9.2
-Cybersecurity,Incident Management,6.9
-Cybersecurity,Finance,6.9
-Cybersecurity,Vulnerability Assessment,4.6
-Cybersecurity,Risk Analysis,4.6
-Cybersecurity,Financial Services,3.4
-Cybersecurity,Financial Analysis,3.4
-Cybersecurity,Investment Banking,1.1
-Cybersecurity,Bioanalysis,1.1
-Cybersecurity,Glp,1.1
-Cybersecurity,Clinical Research,1.1
-Software Dev,Java,51.1
-Software Dev,SQL,46.8
-Software Dev,Python,24.5
-Software Dev,Backend,24.5
-Software Dev,Angular,22.3
-Software Dev,Spring Boot,19.1
-Software Dev,Hibernate,16.0
-Software Dev,C#,13.8
-Software Dev,MongoDB,13.8
-Software Dev,Backend Development,12.8
-Software Dev,C++,11.7
-Software Dev,Git,11.7
-Software Dev,PostgreSQL,9.6
-Software Dev,.Net,8.5
-Software Dev,Linux,8.5
-Software Dev,jQuery,6.4
-Software Dev,Mvc,6.4
-Software Dev,Object Oriented Design,6.4
-Software Dev,Software Development,6.4
-Software Dev,Node.js,6.4
-Software Dev,Software Engineering,6.4
-Software Dev,HTML,4.3
-Software Dev,Full Stack,4.3
-Software Dev,PHP,2.1
-Software Dev,Erp,2.1
+Software Dev,Git,98.0
+Software Dev,SQL,62.5
+Software Dev,Java,57.5
+Software Dev,Spring Boot,47.5
+Software Dev,Docker,36.0
+Software Dev,REST API,35.0
+Software Dev,Linux,34.5
+Software Dev,Microservices,23.5
+Software Dev,Algorithms,22.0
+Software Dev,OOP,21.5
+Software Dev,Data Structures,21.5
+Software Dev,Python,21.5
+Software Dev,MySQL,20.5
+Software Dev,Angular,20.0
+Software Dev,JavaScript,19.5
+Software Dev,CSS,19.5
+Software Dev,Hibernate,18.0
+Software Dev,Backend,18.0
+Software Dev,Maven,17.5
+Software Dev,HTML,17.5
+Software Dev,C++,16.0
+Software Dev,Agile,14.5
+Software Dev,MongoDB,11.5
+Software Dev,JUnit,9.5
+Software Dev,Flask,9.5
+Web Developer,HTML,98.0
+Web Developer,CSS,95.5
+Web Developer,Git,91.5
+Web Developer,JavaScript,80.5
+Web Developer,REST API,60.5
+Web Developer,Bootstrap,49.0
+Web Developer,Node.js,34.0
+Web Developer,PHP,33.5
+Web Developer,MySQL,32.5
+Web Developer,React,32.5
+Web Developer,MongoDB,26.5
+Web Developer,Express.js,20.0
+Web Developer,WordPress,15.0
+Web Developer,jQuery,14.0
+Web Developer,Vue.js,12.5
+Web Developer,Angular,12.5
+Web Developer,TypeScript,12.0
+Web Developer,Tailwind CSS,11.0
+Web Developer,Laravel,10.0
+Web Developer,Responsive Design,10.0
+Web Developer,SEO,9.0
+Web Developer,Next.js,7.0
+Web Developer,SQL,7.0
+Web Developer,Redux,5.0
+Web Developer,Figma,5.0
+Data Analyst,SQL,99.5
+Data Analyst,Python,96.0
+Data Analyst,Power BI,94.0
+Data Analyst,Excel,88.0
+Data Analyst,Tableau,49.5
+Data Analyst,Pandas,39.5
+Data Analyst,NumPy,31.0
+Data Analyst,Data Analysis,29.5
+Data Analyst,Data Management,23.0
+Data Analyst,Google Sheets,23.0
+Data Analyst,Business Intelligence,21.0
+Data Analyst,Statistics,18.0
+Data Analyst,Looker,16.5
+Data Analyst,Data Visualization,16.5
+Data Analyst,Matplotlib,15.5
+Data Analyst,Data Processing,14.0
+Data Analyst,Machine Learning,13.0
+Data Analyst,Data Mining,11.0
+Data Analyst,Seaborn,10.0
+Data Analyst,Risk Management,9.5
+Data Analyst,Data Cleansing,9.5
+Data Analyst,Advanced Analytics,9.0
+Data Analyst,SAS,9.0
+Data Analyst,Advanced Excel,8.0
+Data Analyst,MySQL,7.5
+QA Tester,Selenium,96.0
+QA Tester,JIRA,95.5
+QA Tester,SQL,86.0
+QA Tester,Java,70.5
+QA Tester,Manual Testing,47.0
+QA Tester,Git,46.0
+QA Tester,TestNG,45.5
+QA Tester,Test Cases,32.5
+QA Tester,Test Automation,30.5
+QA Tester,API Testing,30.0
+QA Tester,Python,29.0
+QA Tester,Postman,24.5
+QA Tester,Pytest,21.5
+QA Tester,Agile,18.5
+QA Tester,Maven,16.5
+QA Tester,JUnit,16.0
+QA Tester,Cucumber,16.0
+QA Tester,BDD,16.0
+QA Tester,SDLC,15.0
+QA Tester,STLC,13.5
+QA Tester,Mobile Testing,6.5
+QA Tester,Regression Testing,5.5
+QA Tester,Appium,5.5
+DevOps Cloud,CI/CD,96.0
+DevOps Cloud,Docker,95.0
+DevOps Cloud,Linux,92.5
+DevOps Cloud,Kubernetes,92.0
+DevOps Cloud,Git,77.0
+DevOps Cloud,Jenkins,63.0
+DevOps Cloud,Terraform,62.0
+DevOps Cloud,AWS,57.5
+DevOps Cloud,GCP,29.0
+DevOps Cloud,Ansible,24.0
+DevOps Cloud,Azure,22.0
+DevOps Cloud,Python,17.5
+DevOps Cloud,GitHub Actions,14.5
+DevOps Cloud,Monitoring,11.5
+DevOps Cloud,Load Balancing,8.5
+DevOps Cloud,Monitoring Tools,7.5
+DevOps Cloud,Nginx,5.5
+Cybersecurity,SOC,93.0
+Cybersecurity,Linux,85.0
+Cybersecurity,SIEM,72.5
+Cybersecurity,Incident Response,50.5
+Cybersecurity,Python,43.5
+Cybersecurity,Network Security,42.0
+Cybersecurity,Networking,40.5
+Cybersecurity,Compliance,39.5
+Cybersecurity,Threat Analysis,33.5
+Cybersecurity,Threat Detection,33.0
+Cybersecurity,Risk Assessment,29.0
+Cybersecurity,Risk Management,24.5
+Cybersecurity,SIEM Tools,23.5
+Cybersecurity,MDR,23.5
+Cybersecurity,Root Cause Analysis,22.0
+Cybersecurity,Vulnerability Assessment,20.5
+Cybersecurity,Cybersecurity,18.0
+Cybersecurity,Git,16.5
+Cybersecurity,Incident Management,16.5
+Cybersecurity,ISO,13.0
+Cybersecurity,Penetration Testing,10.0
+Cybersecurity,Kali Linux,10.0
+Cybersecurity,Wireshark,9.0
+Cybersecurity,Firewalls,8.0
+Cybersecurity,Firewall,4.5
+Full Stack Dev,React,98.5
+Full Stack Dev,MongoDB,97.5
+Full Stack Dev,Node.js,92.5
+Full Stack Dev,Git,85.0
+Full Stack Dev,Express.js,71.5
+Full Stack Dev,JavaScript,62.5
+Full Stack Dev,HTML,57.5
+Full Stack Dev,CSS,56.5
+Full Stack Dev,REST API,34.5
+Full Stack Dev,MERN Stack,21.5
+Full Stack Dev,Docker,19.0
+Full Stack Dev,Bootstrap,13.5
+Full Stack Dev,SQL,13.5
+Full Stack Dev,TypeScript,13.0
+Full Stack Dev,Redux,11.5
+Full Stack Dev,Agile,8.0
+Full Stack Dev,Jest,6.5
+Full Stack Dev,Tailwind CSS,6.5
+Full Stack Dev,CI/CD,6.0
+Full Stack Dev,Next.js,5.5
+ML Engineer,Git,97.0
+ML Engineer,Python,94.0
+ML Engineer,TensorFlow,82.5
+ML Engineer,SQL,74.5
+ML Engineer,Machine Learning,57.5
+ML Engineer,Pandas,51.0
+ML Engineer,NumPy,48.5
+ML Engineer,NLP,44.0
+ML Engineer,Deep Learning,42.0
+ML Engineer,Scikit-learn,40.5
+ML Engineer,PyTorch,32.0
+ML Engineer,Linux,29.0
+ML Engineer,Computer Vision,20.5
+ML Engineer,LLM,19.5
+ML Engineer,Statistics,15.0
+ML Engineer,OpenCV,11.0
+ML Engineer,Neural Networks,11.0
+ML Engineer,Reinforcement Learning,8.5
+ML Engineer,Keras,5.0

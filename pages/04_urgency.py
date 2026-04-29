@@ -1,13 +1,12 @@
 # pages/04_urgency.py
 
 import streamlit as st
+import streamlit.components.v1 as components
 from session_store import init_session
-import plotly.graph_objects as go
-import pandas as pd
 from _sidebar import APPLE_CSS, render_sidebar
 
 st.set_page_config(
-    page_title="SkillDrift — Urgency Engine",
+    page_title="SkillDrift — Time Left",
     page_icon="assets/logo.png",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -21,14 +20,14 @@ render_sidebar()
 if not st.session_state.get("student_name"):
     st.warning("Session not found. Please start from the beginning.")
     st.switch_page("pages/02_skill_input.py")
+    st.stop()
 
-urgency_info    = st.session_state.get("urgency_info", {})
-focus_debt_info = st.session_state.get("focus_debt_info", {})
-semester        = st.session_state.get("semester", 4)
-best_track      = st.session_state.get("best_track", "your best matching track")
+urgency_info = st.session_state.get("urgency_info", {})
+semester     = st.session_state.get("semester", 4)
+best_track   = st.session_state.get("best_track", "your best matching track")
 
 if not urgency_info:
-    st.warning("Urgency data not found. Please complete the quiz first.")
+    st.warning("Data not found. Please complete the quiz first.")
     st.stop()
 
 urgency_level   = urgency_info.get("urgency_level", "Red")
@@ -37,27 +36,31 @@ weeks_remaining = urgency_info.get("weeks_remaining", 0)
 
 URGENCY_COLOR_MAP = {"Green": "#15803d", "Yellow": "#d97706", "Red": "#ba1a1a"}
 URGENCY_BG_MAP    = {"Green": "#f0fdf4", "Yellow": "#fffbeb", "Red": "#fff5f5"}
-urgency_color  = URGENCY_COLOR_MAP.get(urgency_level, "#ba1a1a")
-urgency_bg     = URGENCY_BG_MAP.get(urgency_level, "#fff5f5")
-level_labels   = {"Green": "Low Urgency", "Yellow": "Moderate Urgency", "Red": "High Urgency"}
-level_display  = level_labels.get(urgency_level, urgency_level)
+urgency_color = URGENCY_COLOR_MAP.get(urgency_level, "#ba1a1a")
+urgency_bg    = URGENCY_BG_MAP.get(urgency_level, "#fff5f5")
+level_labels  = {
+    "Green":  "You Have Time — Stay Focused",
+    "Yellow": "Time is Getting Short",
+    "Red":    "High Alert — Act Now",
+}
+level_display = level_labels.get(urgency_level, urgency_level)
 
-# ── Page title ─────────────────────────────────────────────────────────────────
+# ── Page Title ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="margin-bottom:28px;">
     <div style="font-family:'Manrope',sans-serif;font-size:1.5rem;font-weight:800;color:#171c1f;">
-        Urgency Engine
+        Time Left
     </div>
     <div style="font-size:0.875rem;color:#515f74;margin-top:5px;">
-        How much time you have left — and how much you have already spent off-track.
+        How much time you have before placement season. Use it well.
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# ── Urgency banner ─────────────────────────────────────────────────────────────
+# ── Status Banner ───────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div style="background:{urgency_bg};border:1.5px solid {urgency_color};
-            border-left:5px solid {urgency_color};
+            border-left:6px solid {urgency_color};
             border-radius:12px;padding:20px 24px;margin-bottom:28px;">
     <div style="font-family:'Manrope',sans-serif;font-size:1rem;font-weight:800;
                 color:{urgency_color};margin-bottom:6px;">
@@ -69,25 +72,25 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Countdown cards ────────────────────────────────────────────────────────────
-c1, c2, c3 = st.columns(3, gap="medium")
+# ── Two Metric Cards ────────────────────────────────────────────────────────────
+c1, c2 = st.columns(2, gap="medium")
 
 with c1:
     st.markdown(f"""
     <div class="sd-metric">
-        <div class="sd-metric-label">Your Semester</div>
+        <div class="sd-metric-label">Your Current Semester</div>
         <div class="sd-metric-value" style="color:#002c98;">{semester}</div>
-        <div class="sd-metric-sub">of 8 semesters</div>
+        <div class="sd-metric-sub">out of 8 semesters total</div>
     </div>
     """, unsafe_allow_html=True)
 
 with c2:
     if semester >= 7:
         countdown_text = "Now"
-        countdown_sub  = "Placement season is active"
+        countdown_sub  = "Placement season is active — interviews are happening"
     else:
         countdown_text = str(weeks_remaining)
-        countdown_sub  = "weeks until Semester 7"
+        countdown_sub  = "weeks left until Semester 7 placements begin"
 
     st.markdown(f"""
     <div class="sd-metric">
@@ -97,162 +100,165 @@ with c2:
     </div>
     """, unsafe_allow_html=True)
 
-with c3:
-    debt_hours = focus_debt_info.get("focus_debt_hours", 0)
-    debt_color = "#ba1a1a" if debt_hours > 90 else "#d97706" if debt_hours > 30 else "#15803d"
+st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div class="sd-metric">
-        <div class="sd-metric-label">Focus Debt</div>
-        <div class="sd-metric-value" style="color:{debt_color};">{debt_hours}</div>
-        <div class="sd-metric-sub">estimated hours off-track</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
-
-# ── Focus Debt explained ───────────────────────────────────────────────────────
-daily_hours        = focus_debt_info.get("daily_hours", 2)
-days_to_recover    = focus_debt_info.get("days_to_recover", 0)
-distraction_skills = focus_debt_info.get("distraction_skills", [])
-on_track_skills    = focus_debt_info.get("on_track_skills", [])
-
-st.markdown(f"""
-<div class="sd-card" style="margin-bottom:20px;">
-    <div style="font-family:'Manrope',sans-serif;font-size:1rem;font-weight:700;
-                color:#171c1f;margin-bottom:12px;">What is Focus Debt?</div>
-    <div style="font-size:0.9rem;color:#171c1f;line-height:1.7;">
-        <strong>Focus Debt</strong> is the estimated hours you spent learning skills that do not
-        contribute to <strong>{best_track}</strong>. Each off-track skill costs roughly 30 hours of learning time.
-    </div>
-    <div style="background:#f6fafe;border-radius:8px;padding:12px 14px;
-                border-left:3px solid {debt_color};margin-top:16px;
-                font-size:0.9rem;color:#515f74;line-height:1.55;">
-        You have <strong style="color:#171c1f;">{debt_hours} hours</strong> of focus debt.
-        At {daily_hours} hrs/day, that is <strong style="color:#171c1f;">{days_to_recover} days</strong>
-        of study time redirected away from your goal.
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ── Skill breakdown ────────────────────────────────────────────────────────────
-ca, cb = st.columns(2, gap="medium")
-
-with ca:
-    st.markdown(f"""
-    <div style="font-family:'Manrope',sans-serif;font-size:0.95rem;font-weight:700;
-                color:#171c1f;margin-bottom:10px;">
-        On-Track Skills — {best_track}
-    </div>
-    """, unsafe_allow_html=True)
-    if on_track_skills:
-        items = "".join([
-            f"<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-left:3px solid #15803d;"
-            f"border-radius:8px;padding:9px 14px;margin:5px 0;"
-            f"font-size:0.88rem;color:#171c1f;font-family:Inter,sans-serif;'>{s}</div>"
-            for s in on_track_skills
-        ])
-        st.markdown(items, unsafe_allow_html=True)
-    else:
-        st.info("None of your verified skills match the required list for this track.")
-
-with cb:
-    st.markdown("""
-    <div style="font-family:'Manrope',sans-serif;font-size:0.95rem;font-weight:700;
-                color:#171c1f;margin-bottom:10px;">
-        Off-Track Skills (Focus Debt)
-    </div>
-    """, unsafe_allow_html=True)
-    if distraction_skills:
-        items = "".join([
-            f"<div style='background:#fff5f5;border:1px solid #fecaca;border-left:3px solid #ba1a1a;"
-            f"border-radius:8px;padding:9px 14px;margin:5px 0;"
-            f"font-size:0.88rem;color:#171c1f;font-family:Inter,sans-serif;'>"
-            f"{s} <span style='color:#94a3b8;font-size:0.8rem;'>— 30 hrs est.</span></div>"
-            for s in distraction_skills
-        ])
-        st.markdown(items, unsafe_allow_html=True)
-    else:
-        st.success("All your verified skills are on-track. No focus debt detected.")
-
-st.markdown("<hr style='border:none;border-top:1px solid #e2e8f0;margin:28px 0;'>", unsafe_allow_html=True)
-
-# ── Chart ──────────────────────────────────────────────────────────────────────
+# ── Semester Timeline — rendered via components.html to avoid Streamlit markdown escaping ──
 st.markdown("""
 <div style="font-family:'Manrope',sans-serif;font-size:1rem;font-weight:700;
-            color:#171c1f;margin-bottom:16px;">
-    Focus Debt vs Available Study Time
+            color:#171c1f;margin-bottom:12px;">
+    Where You Are in Your Degree
 </div>
 """, unsafe_allow_html=True)
 
-semesters_remaining = max(0, 8 - semester)
-available_hours     = semesters_remaining * 20 * 5 * daily_hours
+semesters_total = 8
+placement_start = 7
 
-fig_bar = go.Figure()
-fig_bar.add_trace(go.Bar(
-    name="Focus Debt (off-track hours)",
-    x=["Your Situation"],
-    y=[debt_hours],
-    marker_color="#ba1a1a",
-    text=[f"{debt_hours} hrs"],
-    textposition="outside",
-    textfont=dict(color="#171c1f", size=13, family="Manrope"),
-))
-fig_bar.add_trace(go.Bar(
-    name="Available Study Hours Remaining",
-    x=["Your Situation"],
-    y=[available_hours],
-    marker_color="#15803d",
-    text=[f"{available_hours} hrs"],
-    textposition="outside",
-    textfont=dict(color="#171c1f", size=13, family="Manrope"),
-))
-fig_bar.update_layout(
-    barmode="group",
-    paper_bgcolor="#FFFFFF",
-    plot_bgcolor="#f8fafc",
-    font=dict(color="#515f74", size=12, family="Inter"),
-    legend=dict(
-        bgcolor="#FFFFFF",
-        bordercolor="#e2e8f0",
-        borderwidth=1,
-        font=dict(size=12),
-    ),
-    yaxis=dict(gridcolor="#e2e8f0", title="Hours", color="#515f74", gridwidth=1),
-    xaxis=dict(gridcolor="#e2e8f0", color="#515f74"),
-    margin=dict(t=36, b=36, l=16, r=16),
-    height=320,
-    bargap=0.3,
-    bargroupgap=0.08,
-)
-st.plotly_chart(fig_bar, use_container_width=True)
-st.markdown(
-    f"<div style='font-size:0.8rem;color:#94a3b8;margin-top:-8px;'>"
-    f"Available hours: {semesters_remaining} semesters x 20 weeks x 5 days x {daily_hours} hrs/day</div>",
-    unsafe_allow_html=True,
-)
+# Build each dot + connector as a plain string — no f-string loops inside st.markdown
+dot_items = []
+for i in range(1, semesters_total + 1):
+    is_current   = (i == semester)
+    is_past      = (i < semester)
+    is_placement = (i >= placement_start)
+    is_last      = (i == semesters_total)
 
-# ── Off-track table ────────────────────────────────────────────────────────────
-if distraction_skills:
-    st.markdown("<hr style='border:none;border-top:1px solid #e2e8f0;margin:24px 0;'>", unsafe_allow_html=True)
-    st.markdown("""
-    <div style="font-family:'Manrope',sans-serif;font-size:1rem;font-weight:700;
-                color:#171c1f;margin-bottom:12px;">
-        Off-Track Skills Breakdown
+    if is_current:
+        dot_bg     = urgency_color
+        lbl_color  = urgency_color
+        lbl_wt     = "800"
+        shadow     = f"0 0 0 6px {urgency_color}28"
+        dot_size   = "42"
+        inner_fs   = "16"
+    elif is_past:
+        dot_bg     = "#94a3b8"
+        lbl_color  = "#94a3b8"
+        lbl_wt     = "500"
+        shadow     = "none"
+        dot_size   = "30"
+        inner_fs   = "13"
+    elif is_placement:
+        dot_bg     = "#002c98"
+        lbl_color  = "#002c98"
+        lbl_wt     = "600"
+        shadow     = "none"
+        dot_size   = "30"
+        inner_fs   = "13"
+    else:
+        dot_bg     = "#e2e8f0"
+        lbl_color  = "#94a3b8"
+        lbl_wt     = "500"
+        shadow     = "none"
+        dot_size   = "30"
+        inner_fs   = "13"
+
+    text_color = "#ffffff" if (is_current or is_past or is_placement) else "#94a3b8"
+
+    you_label = (
+        f'<div style="font-size:11px;color:{urgency_color};font-weight:800;'
+        f'text-align:center;margin-top:4px;">YOU</div>'
+        if is_current else '<div style="height:19px;"></div>'
+    )
+    # No per-dot job label anymore — handled as a banner above the timeline
+    job_label = '<div style="height:19px;"></div>'
+
+    dot_html = (
+        f'<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">'
+        f'  <div style="font-size:11px;color:{lbl_color};font-weight:{lbl_wt};'
+        f'              margin-bottom:6px;">Sem {i}</div>'
+        f'  <div style="width:{dot_size}px;height:{dot_size}px;border-radius:50%;'
+        f'              background:{dot_bg};display:flex;align-items:center;'
+        f'              justify-content:center;box-shadow:{shadow};">'
+        f'    <span style="color:{text_color};font-size:{inner_fs}px;font-weight:700;">{i}</span>'
+        f'  </div>'
+        f'  {you_label}'
+        f'  {job_label}'
+        f'</div>'
+    )
+
+    connector_color = "#94a3b8" if i < semester else "#e2e8f0"
+    connector_html = (
+        f'<div style="flex:1;height:3px;background:{connector_color};'
+        f'min-width:10px;margin-bottom:38px;"></div>'
+        if not is_last else ""
+    )
+
+    dot_items.append(dot_html + connector_html)
+
+dots_joined = "\n".join(dot_items)
+
+timeline_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body {{ margin:0; padding:0; font-family: 'Inter', sans-serif; background: transparent; }}
+</style>
+</head>
+<body>
+<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;
+            padding:20px 28px 16px 28px;">
+
+  <div style="display:flex;justify-content:flex-end;margin-bottom:6px;padding-right:2px;">
+    <div style="background:#e8eeff;border:1px solid #002c98;border-radius:6px;
+                padding:3px 10px;font-size:11px;font-weight:700;color:#002c98;">
+      Campus Placements happen in Sem 7 and 8
     </div>
-    """, unsafe_allow_html=True)
-    dist_df = pd.DataFrame([
-        {
-            "Skill":                  skill,
-            "Estimated Hours Spent":  30,
-            "Relevant to Best Track": "No",
-            "Recommendation":         "Deprioritise — focus on your track first",
-        }
-        for skill in distraction_skills
-    ])
-    st.dataframe(dist_df, use_container_width=True, hide_index=True)
+  </div>
 
-st.markdown("<hr style='border:none;border-top:1px solid #e2e8f0;margin:28px 0;'>", unsafe_allow_html=True)
+  <div style="display:flex;align-items:center;gap:0;">
+    {dots_joined}
+  </div>
+
+  <div style="display:flex;gap:20px;margin-top:16px;padding-top:12px;
+              border-top:1px solid #f1f5f9;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:11px;height:11px;border-radius:50%;background:#94a3b8;"></div>
+      <span style="font-size:12px;color:#515f74;">Done</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:11px;height:11px;border-radius:50%;background:#e2e8f0;
+                  border:1px solid #cbd5e1;"></div>
+      <span style="font-size:12px;color:#515f74;">Upcoming</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:11px;height:11px;border-radius:50%;background:#002c98;"></div>
+      <span style="font-size:12px;color:#515f74;">Placement Semesters</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+"""
+
+components.html(timeline_html, height=215, scrolling=False)
+
+# ── Plain-language context ──────────────────────────────────────────────────────
+semesters_left = max(0, placement_start - semester)
+
+if semester >= 7:
+    time_context = (
+        "You are in placement season right now. Focus only on what companies are asking for. "
+        "Check the Job Market page for current skill demand."
+    )
+elif semesters_left == 1:
+    time_context = (
+        f"Only 1 semester left before placements start. This is your last real chance to add skills "
+        f"for {best_track}. Be selective — only learn what companies actually need."
+    )
+else:
+    time_context = (
+        f"You have {semesters_left} semesters before placements begin. Enough time to build strong "
+        f"skills for {best_track} if you start now and stay focused."
+    )
+
+st.markdown(f"""
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;
+            padding:16px 20px;margin-top:12px;">
+    <div style="font-size:0.9rem;color:#171c1f;line-height:1.7;">{time_context}</div>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("<hr style='border:none;border-top:1px solid #e2e8f0;margin:28px 0;'>",
+            unsafe_allow_html=True)
 
 col_prev, col_next = st.columns(2)
 with col_prev:

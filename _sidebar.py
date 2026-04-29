@@ -287,25 +287,23 @@ def _short_entropy_label(label: str) -> str:
 
 # ── Navigation ──────────────────────────────────────────────────────────────
 NAV_PAGES = [
-    ("Skill Input",            "pages/02_skill_input.py"),
-    ("Drift & Entropy Scores", "pages/03_drift_score.py"),
-    ("Urgency Engine",         "pages/04_urgency.py"),
-    ("Career Track Match",     "pages/05_career_match.py"),
-    ("Next Skill & Readiness", "pages/06_next_skill.py"),
-    ("Peer Mirror & Survival", "pages/07_peer_mirror.py"),
-    ("Market Intelligence",    "pages/08_market_intel.py"),
-    ("Final Report",           "pages/10_final_report.py"),
+    ("Dashboard",            "pages/03_drift_score.py"),
+    ("Time Left",            "pages/04_urgency.py"),
+    ("Career Match",         "pages/05_career_match.py"),
+    ("Next Skill to Learn",  "pages/06_next_skill.py"),
+    ("Placement Odds",       "pages/07_peer_mirror.py"),
+    ("Job Market",           "pages/08_market_intel.py"),
+    ("My Report Card",       "pages/10_final_report.py"),
 ]
 
 _PAGE_KEY_MAP = {
-    "skill_input": "pages/02_skill_input.py",
-    "drift"      : "pages/03_drift_score.py",
-    "urgency"    : "pages/04_urgency.py",
-    "career"     : "pages/05_career_match.py",
-    "next"       : "pages/06_next_skill.py",
-    "peer"       : "pages/07_peer_mirror.py",
-    "market"     : "pages/08_market_intel.py",
-    "report"     : "pages/10_final_report.py",
+    "drift"  : "pages/03_drift_score.py",
+    "urgency": "pages/04_urgency.py",
+    "career" : "pages/05_career_match.py",
+    "next"   : "pages/06_next_skill.py",
+    "peer"   : "pages/07_peer_mirror.py",
+    "market" : "pages/08_market_intel.py",
+    "report" : "pages/10_final_report.py",
 }
 
 
@@ -329,10 +327,10 @@ def _inject_active_nav_css(active_page: str) -> None:
                     btn.style.setProperty('background',  '#f1f5f9', 'important');
                     btn.style.setProperty('color',       '#171c1f', 'important');
                     btn.style.setProperty('font-weight', '700',     'important');
-                }} else if (['Skill Input','Drift & Entropy Scores','Urgency Engine',
-                             'Career Track Match','Next Skill & Readiness',
-                             'Peer Mirror & Survival','Market Intelligence',
-                             'Final Report'].includes(txt)) {{
+                }} else if (['Dashboard','Time Left',
+                             'Career Match','Next Skill to Learn',
+                             'Placement Odds','Job Market',
+                             'My Report Card'].includes(txt)) {{
                     btn.style.removeProperty('background');
                     btn.style.removeProperty('color');
                     btn.style.removeProperty('font-weight');
@@ -462,10 +460,59 @@ def render_sidebar():
         active_page = _PAGE_KEY_MAP.get(st.session_state.get("_current_page", ""), "")
         _inject_active_nav_css(active_page)
 
-        # ── Nav buttons ───────────────────────────────────────────────
+        # ── Nav buttons with failure gate locking ─────────────────────
+        quiz_results    = st.session_state.get("quiz_results", [])
+        semester_val_n  = st.session_state.get("semester", 0)
+        try:
+            sem_int = int(str(semester_val_n).split()[0]) if semester_val_n else 0
+        except Exception:
+            sem_int = 0
+
+        verified_count = sum(
+            1 for r in quiz_results
+            if r.get("status") in ("Confirmed", "Borderline")
+        )
+        total_claimed  = len(quiz_results)
+
+        # Determine if gate is passed
+        # Beginner (sem 1-2): need 2/3+; Intermediate/Advanced (sem 3-8): need 3/3+
+        if sem_int <= 2:
+            min_required = 2
+        else:
+            min_required = 3
+
+        quiz_done   = st.session_state.get("quiz_complete", False)
+        gate_passed = (not quiz_done) or (verified_count >= min_required) or (total_claimed >= 5 and verified_count >= 4)
+
+        if quiz_done and not gate_passed:
+            # Show locked status
+            st.markdown(f"""
+            <div style="margin:6px 12px 10px 12px;padding:10px 12px;
+                        background:#fff8e1;border-radius:8px;
+                        border-left:3px solid #d97706;">
+                <div style="font-size:0.72rem;font-weight:700;color:#d97706;
+                            text-transform:uppercase;letter-spacing:0.05em;
+                            font-family:'Inter',sans-serif;">Results locked</div>
+                <div style="font-size:0.8rem;color:#515f74;margin-top:3px;
+                            font-family:'Inter',sans-serif;">
+                    {verified_count} of {total_claimed} skills verified
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
         for label, page in NAV_PAGES:
-            if st.button(label, key=f"nav__{page}", use_container_width=True):
-                st.switch_page(page)
+            is_dashboard = (page == "pages/03_drift_score.py")
+            if is_dashboard or gate_passed:
+                if st.button(label, key=f"nav__{page}", use_container_width=True):
+                    st.switch_page(page)
+            else:
+                # Greyed-out, non-clickable
+                st.markdown(f"""
+                <div style="padding:10px 14px;font-size:0.875rem;font-weight:500;
+                            font-family:'Inter',sans-serif;color:#c0c8d4;
+                            cursor:not-allowed;border-radius:6px;
+                            user-select:none;">{label}</div>
+                """, unsafe_allow_html=True)
 
         # ── Footer ────────────────────────────────────────────────────
         st.markdown(
@@ -510,9 +557,6 @@ def render_sidebar():
                     <div style="background:#fff;border-radius:16px;padding:40px 36px 32px;
                                 width:420px;max-width:90vw;text-align:center;
                                 box-shadow:0 20px 60px rgba(0,0,0,0.18);">
-                        <div style="width:60px;height:60px;border-radius:50%;background:#fff8e1;
-                                    display:flex;align-items:center;justify-content:center;
-                                    margin:0 auto 20px;font-size:28px;">⚠️</div>
                         <div style="font-size:1.35rem;font-weight:700;color:#171c1f;margin-bottom:12px;
                                     font-family:'Inter',sans-serif;">Log Out?</div>
                         <div style="font-size:0.9rem;color:#515f74;line-height:1.6;margin-bottom:28px;

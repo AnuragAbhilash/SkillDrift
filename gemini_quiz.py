@@ -216,7 +216,7 @@ def score_quiz_answers(skill, claimed_level, questions, student_answers):
 
     ratio = correct_count / total if total > 0 else 0
 
-    if ratio >= 0.67:
+    if ratio >= 0.66:
         status         = "Confirmed"
         verified_level = claimed_level
     elif ratio >= 0.34:
@@ -474,9 +474,9 @@ def score_all(quiz_data: list) -> dict:
         if result["verified_level"] != "Not Verified":
             verified_skills[skill] = result["verified_level"]
 
-    if not verified_skills:
-        for r in quiz_results:
-            verified_skills[r["skill"]] = r["claimed_level"]
+    # NOTE: We intentionally do NOT fall back to claiming all skills as verified
+    # when none pass. If a student fails all questions, verified_skills stays empty.
+    # The UI will handle showing this state clearly to the student.
 
     st.session_state["quiz_results"]    = quiz_results
     st.session_state["verified_skills"] = verified_skills
